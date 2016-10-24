@@ -1,0 +1,248 @@
+#!/usr/bin/env python
+
+import pygame, sys
+from pygame.locals import *
+import numpy as np
+import matplotlib.cm as cm
+import pyfits as pf
+
+import Image
+import time
+
+from   xaosim.shmlib import shm
+
+cindex = 0 # color map index
+cmaps = []
+cmaps.append(cm.gray)
+
+
+try:
+    cmaps.append(cm.viridis)
+    cmaps.append(cm.inferno)
+    cmaps.append(cm.magma)
+    cmaps.append(cm.plasma)
+    cmaps.append(cm.jet)
+except:    
+    cmaps.append(cm.jet)
+
+ncmaps = cmaps.__len__()
+
+hmsg = """
+
+########################################
+
+Shared memory structure live viewer
+-----------------------------------
+
+command:
+-------
+
+>> shmview /tmp/xxx.shm [zoom_factor]
+
+note: default zoom factor is 2
+
+ex:
+--
+
+>> shmview /tmp/ircam2.im.shm 3
+>> shmview /tmp/dmdispcombconf.conf.shm 5
+
+########################################
+
+display controls:
+----------------
+l     : linear/non-linear display
+m     : color/gray color-map
+ESC   : quit shmview
+
+########################################
+
+"""
+
+
+args = sys.argv[1:]
+if args == []: 
+    print(hmsg)
+    #cam = shm("/tmp/ircam%d.im.shm" % (2,))
+    cam = shm("/tmp/test")
+else:
+    print("test %s" % (args[0],))
+    cam = shm(args[0])
+
+if args.__len__() == 2:
+    zoom = int(args[1])
+else:
+    zoom = 2
+
+# ------------------------------------------------------------------
+#                       global variables
+# ------------------------------------------------------------------
+mycmap = cm.gray
+if cam.naxis == 1:
+    (ysize, xsize) = (cam.size[:cam.naxis], 1)
+elif cam.naxis == 2:
+    (ysize, xsize) = cam.size[:cam.naxis]
+elif cam.naxis == 3:
+    (ysize, xsize) = cam.size[1:cam.naxis]
+
+# -----------------------
+#   set up the window
+# -----------------------
+pygame.init()
+
+FPS = 10                        # frames per second setting
+fpsClock = pygame.time.Clock()  # start the pygame clock!
+XW, YW = 650, 712
+XW, YW = zoom * xsize, zoom * ysize
+
+screen = pygame.display.set_mode((XW, YW), 0, 32)
+pygame.display.set_caption('%s' % (args[0],))
+
+# ------------------------------------------------------------------
+#             short hands for shared memory data access
+# ------------------------------------------------------------------
+def get_img_data(check=False):
+    ''' ----------------------------------------
+    Return the current image data content,
+    formatted as a 2D numpy array.
+    Reads from the already-opened shared memory
+    data structure.
+    ---------------------------------------- '''
+    if cam.naxis <= 2:
+        res = cam.get_data(check, True).astype(float)
+    elif cam.naxis == 3:
+        res = cam.get_data(check, True).sum(0).astype(float)
+    return(res)
+
+# ------------------------------------------------------------------
+#  another short hand to convert numpy array into image for display
+# ------------------------------------------------------------------
+def arr2im(arr, vmin=0., vmax=10000.0, pwr=1.0):
+    
+    arr2 = arr.astype('float')**pwr
+    mmin,mmax = arr2.min(), arr2.max()
+    #mmax = np.percentile(arr2, 99)
+    arr2 -= mmin
+    arr2 /= (mmax-mmin)
+
+    if zoom != 1:
+        img = Image.fromarray(arr2)
+        rimg = img.resize((zoom*ysize, zoom*xsize))
+        rarr = np.asarray(rimg)
+        test = mycmap(rarr)
+    else:
+        test = mycmap(arr2)
+    return((255*test[:,:,:3]).astype('int'))
+
+# ------------------------------------------------------------------
+#              !!! now we are in business !!!!
+# ------------------------------------------------------------------
+
+background = pygame.Surface(screen.get_size())
+background = background.convert()
+background.fill((0,0,0))
+
+# ----------------------------
+#          labels
+# ----------------------------
+font3 = pygame.font.SysFont("droidsansmono", 16)
+
+xws = xsize*zoom
+yws = ysize*zoom
+
+imin, imax = 0, 0
+surf_live = pygame.surface.Surface((zoom*xsize, zoom*ysize))
+#screen.blit(surf_live, (5,5))
+
+rect1 = surf_live.get_rect()
+rect1.center = (xws/2, yws/2)
+
+temp      = get_img_data()
+
+
+plot_cross = True  # flag for display of the crosses
+subt_bias  = False # flag for bias subtraction
+cont_acq   = False 
+lin_scale  = True  # flag for linear range
+clr_scale  = False # flag for the display color scale
+bias = np.zeros_like(temp)
+
+counter = 0
+myccmap = cmaps[1]
+
+# =======================================================
+# =======================================================
+while True: # the main game loop
+    clicked = False
+
+    pwr0 = 1.0
+    if not lin_scale:
+        pwr0 = 0.3
+
+    mycmap = cm.gray
+    if clr_scale:
+        mycmap = myccmap
+
+    mycmap = cmaps[cindex]
+
+    # read image
+    test = cam.get_counter()
+    if test != counter:
+        counter = test
+        temp    = get_img_data()
+
+        imin, imax = temp.min(), temp.max()
+        temp -= imin
+        myim      = arr2im(temp.transpose(), pwr=pwr0)
+
+        imax = np.percentile(temp, 99.95)
+        msg = "(min,max) = (%5d,%5d)" % (imin, imax)
+
+    # display information
+    pygame.surfarray.blit_array(surf_live, myim)
+    screen.blit(surf_live, rect1)
+
+
+    # =====================================
+    for event in pygame.event.get():
+
+        if event.type == QUIT:
+            pygame.quit()
+
+            # close shared memory access
+            # --------------------------
+            cam.close()          # global disp map
+            print("shmview has ended normally.")
+            sys.exit()
+        elif event.type == KEYDOWN:
+
+            if event.key == K_ESCAPE:
+                pygame.quit()
+                # close shared memory access
+                # --------------------------
+                cam.close()          # global disp map
+                print("shmview has ended normally.")
+                sys.exit()
+
+            if event.key == K_m:
+                cindex += 1
+                cindex = cindex % ncmaps
+                clr_scale = True - clr_scale
+                counter = 0
+
+            if event.key == K_l:
+                lin_scale = True - lin_scale
+                counter = 0
+
+            if event.key == K_h:
+                print(hmsg)
+
+            if event.key == K_s:
+                toto = temp
+                pf.writeto("shmview_img.fits", toto, clobber=True)
+    pygame.display.flip()
+
+    fpsClock.tick(FPS)
+
+pygame.quit()
+sys.exit()
