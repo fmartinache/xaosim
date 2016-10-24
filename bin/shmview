@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.cm as cm
 import pyfits as pf
 
-import Image
+from PIL import Image
 import time
 
 from   xaosim.shmlib import shm

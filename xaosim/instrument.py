@@ -3,7 +3,7 @@ import threading
 import time
 import pupil
 from shmlib import shm
-import Image
+from PIL import Image
 import pdb
 
 dtor  = np.pi/180.0 # to convert degrees to radians
@@ -15,7 +15,32 @@ ifft  = np.fft.ifft2
 # ===========================================================
 # ===========================================================
 class instrument(object):
+    # ==================================================
     def __init__(self, name="SCExAO"):
+        ''' Default instantiation of an instrument object
+
+        In the context of xaosim, an instrument is simply an assembly of 
+        several of the following basic elements (see class definitions):
+        - a deformable mirror
+        - an atmospheric phase screen
+        - a camera
+        -------------------------------------------------------------------
+        Usage:
+        -----
+
+        The default is to rely on a pre-defined template, like the one of
+        SCExAO or CIAO, that is specified by the instrument name passed as 
+        a parameter to the constructor.
+        
+        >> myinstrument = xaosim.instrument("SCExAO")
+
+        If the name is not one of the possible templates, like for instance:
+
+        >> myinstrument = xaosim.instrument("sauerkraut")
+
+        the returned object is an empty shell that will have to be manually
+        fed, using the class constructors below.
+        ------------------------------------------------------------------- '''
         self.name = name
         if self.name == "SCExAO":
             print("Creating %s" % (self.name,))
@@ -25,17 +50,75 @@ class instrument(object):
             self.atmo = phscreen(self.name, arr_size, self.cam.ld0, 500.0)
 
         elif self.name == "CIAO":
+            arr_size = 512
             self.DM  = DM(self.name, 11, 8)
-            self.cam = cam(self.name, 512, (320, 256), 80.0, 0.8e-6)
+            self.cam = cam(self.name, arr_size, (320, 256), 60.0, 0.8e-6,
+            shmf = '/tmp/ciao_cam.im.shm')
+            self.atmo = phscreen(self.name, arr_size, self.cam.ld0, 500.0)
         else:
-            print("You don't know what you are talking about!")
+            print("""No template for '%s':
+            check your spelling or... 
+            specify characteristics by hand!""" % (self.name))
             self.DM  = None
             self.cam = None
+            self.atmo = None
 
+    # ==================================================
+    def start(self, delay=0.1):
+        ''' A function that starts all the components *servers*
+        
+        To each component is associated a server that periodically updates
+        information on the global DM shape and the camera image, based on
+        the status of the atmospheric phase screen and the different DM
+        channels.
+        -------------------------------------------------------------------
+        Parameter:
+        ---------
+        - delay: (float) a time delay in seconds that sets a common cadence
+
+        Usage:
+        -----
+
+        >> myinstrument.start()
+
+        When doing things by hand, for an instrument that is not a preset,
+        one needs to be careful when plugging the camera to the right shared
+        memory data structures.
+
+        Refer to the code below and the component class definitions to see
+        how to proceed with your custom system.
+        ------------------------------------------------------------------- '''
+        if self.DM != None:
+            self.DM.start(delay)
+            
+        if self.atmo != None:
+            self.atmo.start(delay)
+        
+        if ((self.name == "SCExAO") or (self.name == "CIAO")):
+            self.cam.start(delay,
+                           "/tmp/dmdisp.im.shm",
+                           "/tmp/phscreen.im.shm")
+
+
+    # ==================================================
     def stop(self,):
-        self.atmo.stop()
-        self.cam.stop()
-        self.DM.stop()
+        ''' A function that turns off all servers (and their threads)
+
+        After this, the python session can safely be closed.
+        -------------------------------------------------------------------
+        Usage:
+        -----
+        
+        >> myinstrument.stop()
+
+        Simple no?
+        ------------------------------------------------------------------- '''
+        if self.atmo != None:
+            self.atmo.stop()
+        if self.cam != None:
+            self.cam.stop()
+        if self.DM != None:
+            self.DM.stop()
 
 
 # ===========================================================

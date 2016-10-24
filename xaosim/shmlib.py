@@ -1,5 +1,3 @@
-#!/usr/bine/env python
-
 import os
 import mmap
 import struct
@@ -7,8 +5,6 @@ import ctypes
 import numpy as np
 import time
 import array
-import pyfits as pf
-import pdb
 
 class shm:
 
@@ -186,12 +182,4 @@ class shm:
             print("Failed to write buffer to shared mem structure")
             status = False
         return(status)
-
-    # ======================
-    def save_as_fits(self, fitsname):
-        '''Rudimentary fits file export
-
-        Should eventually include keywords information.
-        '''
-        pf.writeto(fitsname, self.get_data(), clobber=True)
 

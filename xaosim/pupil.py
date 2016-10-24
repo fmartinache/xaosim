@@ -1,6 +1,4 @@
 import numpy as np
-import pdb
-import matplotlib.pyplot
 
 shift = np.fft.fftshift
 fft   = np.fft.fft2
@@ -127,8 +125,6 @@ def subaru_asym((xs, ys), radius, spiders=True, PA=0.0):
 
     a = (yy > xx*np.tan(th0) - h)
     b = (yy < xx*np.tan(th0) + h)
-
-    #pdb.set_trace()
 
     if th < np.pi:
         pup = pup * (1 - (a * b * (xx > 0)))

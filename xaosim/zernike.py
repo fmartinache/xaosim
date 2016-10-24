@@ -1,4 +1,4 @@
-import numpy as np, matplotlib.pyplot as plt, pyfits as pf
+import numpy as np
 from scipy.misc import factorial as fac
 from scipy import *
 import pdb
