@@ -18,7 +18,7 @@ setup(name='xaosim',
       install_requires=[
           'numpy', 'scipy', 'matplotlib', 'pyfits', 'pygame'
       ],
-      scripts=['bin/shmview'],
+      scripts=['bin/shmview', 'bin/zernike_dm'],
       zip_safe=False)
 
 

@@ -181,7 +181,7 @@ class phscreen(object):
         if self.keepgoing:
             self.keepgoing = False
         else:
-            print("The server was frozen")
+            print("The *ATMO* server was frozen")
 
 
     # ==============================================================
@@ -195,7 +195,7 @@ class phscreen(object):
             time.sleep(0.5)
             self.keepgoing = False
         else:
-            print("The server was not running")
+            print("The *ATMO* server was not running")
 
 
     # ==============================================================
@@ -382,7 +382,7 @@ class cam(object):
         if self.keepgoing:
             self.keepgoing = False
         else:
-            print("The server was not running")
+            print("The *CAMERA* server was not running")
 
     # ==================================================
     def __loop__(self, delay=0.1, dm_shm=None, atmo_shm=None):
@@ -520,7 +520,7 @@ class DM(object):
         if self.keepgoing:
             self.keepgoing = False
         else:
-            print("The server was not running")
+            print("The *DM* server was not running")
 
     # ==================================================
     def __loop__(self, delay=0.1):
