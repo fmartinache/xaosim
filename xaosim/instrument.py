@@ -194,6 +194,7 @@ class phscreen(object):
             self.kolm2[:] = 0.0
             time.sleep(0.5)
             self.keepgoing = False
+            print("The *ATMO* server was stopped")
         else:
             print("The *ATMO* server was not running")
 
@@ -225,6 +226,7 @@ class cam(object):
         -------------------------------------------------------------------
         Parameters are:
         --------------
+        - name    : a string describing the instrument
         - sz      : an array size for Fourier computations (>= than xs,ys!)
         - (xs,ys) : the dimensions of the actually produced image
         - pscale  : the plate scale of the image, in mas/pixel
@@ -297,7 +299,13 @@ class cam(object):
         return(res)
 
     # ==================================================
-    def image(self, phscreen=None, dmmap=None):
+    def get_image(self, ):
+        '''Returns the image currently avail on shared memory
+        -------------------------------------------------------
+        '''
+        return(self.shm_cam.get_data())
+    # ==================================================
+    def make_image(self, phscreen=None, dmmap=None):
         ''' For test purposes only?
 
         Produce an image, given a certain number of phase screens
@@ -380,6 +388,7 @@ class cam(object):
         thread of the camera server infinite loop
         ---------------------------------------- '''
         if self.keepgoing:
+            print("The *CAMERA* server was stopped")
             self.keepgoing = False
         else:
             print("The *CAMERA* server was not running")
@@ -429,7 +438,7 @@ class cam(object):
         # 2. enter the loop
         # ----------------------------------------------------
         while self.keepgoing:
-            cmd_args = "" # commands to be sent to self.image()
+            cmd_args = "" # commands to be sent to self.make_image()
 
             if dm_map != None:
                 test = dm_map.get_counter()
@@ -441,9 +450,42 @@ class cam(object):
                 if test != atm_cntr:
                     cmd_args += "phscreen = atm_map.get_data(),"
 
-            exec "self.image(%s)" % (cmd_args,)
+            exec "self.make_image(%s)" % (cmd_args,)
 
             time.sleep(delay)
+
+# ===========================================================
+# ===========================================================
+class SHcam(cam):
+    # ==================================================
+    def __init__(self, name, sz = 512, mls = 10, pscale = 54.79, wl = 0.8e-6,
+                 shmf = '/tmp/SHcam.im.shm'):
+
+        ''' Instantiation of a SH camera
+
+        -------------------------------------------------------------------
+        Parameters:
+        ----------
+        - name    : a string describing the instrument
+        - sz      : an array size for Fourier computations
+        - mls     : # of lenses in micro-lens array (mls X mls)
+        - pscale  : the plate scale of the image, in mas/pixel
+        - wl      : the central wavelength of observation, in meters
+        - shmf    : the name of the file used to point the shared memory
+
+        ------------------------------------------------------------------- '''
+        self.name    = name
+        self.sz      = sz
+        self.wl      = wl
+        self.pscale  = pscale
+
+        self.shmf    = shmf                # the shared memory "file"
+
+        self.self_update()
+
+        self.phot_noise = False            # default state for photon noise
+        self.signal     = 1e6              # default number of photons in frame
+        self.keepgoing  = False            # flag for the camera server
 
 # ===========================================================
 # ===========================================================
@@ -519,6 +561,7 @@ class DM(object):
         ---------------------------------------- '''
         if self.keepgoing:
             self.keepgoing = False
+            print("The *DM* server was stopped")
         else:
             print("The *DM* server was not running")
 
