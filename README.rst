@@ -55,7 +55,5 @@ Release Notes:
 
   The current fix is to set the permissions right on this requirement file:
 
-  "sudo chmod a+r /usr/local/lib/python2.7/dist-packages/\
-   xaosim-0.1-py2.7.egg/EGG-INFO/requires.txt"
+  "sudo chmod a+r /usr/local/lib/python2.7/dist-packages/xaosim-0.1-py2.7.egg/EGG-INFO/requires.txt"
 
-   
