@@ -120,7 +120,35 @@ class instrument(object):
         if self.DM != None:
             self.DM.stop()
 
+    # ==================================================
+    def close(self,):
+        ''' A function to call after the work with the severs is over
+        -------------------------------------------------------------------
+        To properly release all the file descriptors that point toward
+        the shared memory data structures.
+        ------------------------------------------------------------------- '''
 
+        # --- the camera itself ---
+        if (self.cam.shm_cam.fd != 0):
+            self.cam.shm_cam.close()
+
+        # --- the atmospheric phase screen ---
+        if (self.atmo.shm_phs.fd != 0):
+            self.atmo.shm_phs.close()
+
+        # --- the different DM channels ---
+        for i in xrange(self.DM.nch):
+            exec "test = self.DM.disp%d.fd" % (i,)
+            if (test != 0):
+                exec "self.DM.disp%d.close()" % (i,)
+
+        # --- more DM simulation relevant files ---
+        if (self.DM.disp.fd != 0):
+            self.DM.disp.close()
+
+        if (self.DM.volt.fd != 0):
+            self.DM.volt.close()
+            
 # ===========================================================
 # ===========================================================
 class phscreen(object):

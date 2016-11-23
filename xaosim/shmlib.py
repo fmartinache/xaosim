@@ -19,9 +19,11 @@ class shm:
             print("No shared memory file name provided")
             return(None)
 
+        self.fname = fname
         if ((not os.path.exists(fname)) or (data != None)):
             print("Shared mem structure %s will be created" % (fname,))
             self.create(fname, data)
+
         else:
             self.fd = os.open(fname, os.O_RDWR)
             self.buf = mmap.mmap(self.fd, 0, mmap.MAP_SHARED)
@@ -45,16 +47,17 @@ class shm:
         else:
             # anticipate shm data structure size
             # ----------------------------------
-            self.ddtype = data.dtype    # data-type in numpy format
-            self.elt_sz = data.itemsize # size of array element in bytes
-            self.nel    = data.size     # number of array elements
+            self.ddtype       = data.dtype    # data-type in numpy format
+            self.elt_sz       = data.itemsize # size of array element in bytes
+            self.nel          = data.size     # number of array elements
 
-            self.naxis  = np.size(data.shape)
-            temp = [0,0,0]
+            self.naxis        = np.size(data.shape)
+            temp              = [0,0,0]
             temp[:self.naxis] = data.shape
-            self.size = tuple(temp)
-            xs, ys, zs = self.size
-            self.idtype = conv[data.dtype.name]
+            self.size         = tuple(temp)
+            xs, ys, zs        = self.size
+            self.idtype       = conv[data.dtype.name]
+
             # create the file
             # ---------------
             fsz = 200+self.nel*self.elt_sz + kws
@@ -87,6 +90,7 @@ class shm:
     def close(self,):
         self.buf.close()
         os.close(self.fd)
+        self.fd = 0
 
     # ======================
     def read_meta_data(self, verbose=True):
@@ -179,7 +183,7 @@ class shm:
             self.buf[176:184] = struct.pack('l', counter)
             status = True
         except:
-            print("Failed to write buffer to shared mem structure")
+            print("Failed to write buffer to %s" % (self.fname,))
             status = False
         return(status)
 
