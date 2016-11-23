@@ -20,7 +20,7 @@ def get_prad(fsz=512, ldim=8.0, wl=1.6e-6, pscale=10.0):
     ld = wl/ldim * 648e6 / np.pi / pscale # l/D in pixels
     return(fsz/ld/2)
 
-# ==================================================================4
+# ==================================================================
 def spectral_sampling(wl1, wl2, nl, wavenum=False):
     ''' ----------------------------------------------------------
     Returns an array of regularly sampled wavelength between 
@@ -63,7 +63,33 @@ def hex_pup_coords(srad, nr):
             ys = np.append(ys, yy[i])
     return(xs, ys)
 
-# ==================================================================4
+# ==================================================================
+def F_test_figure((ys, xs), ww):
+    ''' ------------------------------------------------------------
+    Returns an (ys x xs) size array with an uppercase F drawn inside
+    The F letter overall size is 5x3 times the thickness of the line.
+
+    To be used when lost in the woods, when it comes to orienting
+    arrays and images, for instance after Fourier Transforms.
+
+    The orientation convention: origin in the bottom left corner, to
+    get the F to be upright.
+
+    Parameters:
+    ----------
+    - (ys, xs): the dimensions of the array
+    - ww      : the thickness of the line
+    --------------------------------------------------------------------
+    '''
+    res = np.zeros((ys, xs))
+    xx, yy = np.meshgrid(np.arange(xs)-xs/2+ww/2, np.arange(ys) - ys/2 + ww/2)
+    res[(xx > -ww) * (xx <=    0) * (yy > -2*ww) * (yy <= 3*ww)] = 1.0
+    res[(xx >=  0) * (xx <= 2*ww) * (yy >  2*ww) * (yy <= 3*ww)] = 1.0
+    res[(xx >=  0) * (xx <=   ww) * (yy >     0) * (yy <=   ww)] = 1.0
+
+    return(res)
+
+# ==================================================================
 def subaru((n,m), radius, spiders=True):
     ''' ---------------------------------------------------------
     returns an array that draws the pupil of the Subaru Telescope
@@ -104,7 +130,7 @@ def subaru((n,m), radius, spiders=True):
     else:
         return(e)
 
-# ==================================================================4
+# ==================================================================
 def subaru_asym((xs, ys), radius, spiders=True, PA=0.0):
     ''' -------------------------------------------------------------
     Returns a pupil mask with an asymmetric arm that mostly follows

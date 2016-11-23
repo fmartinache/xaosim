@@ -5,13 +5,17 @@ Example use:
 -----------
 
 >> python
+
 # import xaosim
+
 # mysetup = xaosim.instrument("CIAO")
+
 # mysetup.start()
 
 In a distinct shell:
 
 >> shmview /tmp/phscreen.im.shm &
+
 >> shmview /tmp/ciao_cam.im.shm &
 
 Will open two pygame displays that show the live image and phase screen.
