@@ -15,12 +15,12 @@ class shm:
 
     # ======================
     def __init__(self, fname=None, data=None, verbose=True):
-        if fname == None:
+        if fname is None:
             print("No shared memory file name provided")
             return(None)
 
         self.fname = fname
-        if ((not os.path.exists(fname)) or (data != None)):
+        if ((not os.path.exists(fname)) or (data is not None)):
             print("Shared mem structure %s will be created" % (fname,))
             self.create(fname, data)
 
@@ -41,7 +41,7 @@ class shm:
                 'float64': 4,
                 'uint16' : 7}
 
-        if data == None:
+        if data is None:
             print("No data (ndarray) provided!")
             return(False)
         else:

@@ -88,10 +88,10 @@ class instrument(object):
         Refer to the code below and the component class definitions to see
         how to proceed with your custom system.
         ------------------------------------------------------------------- '''
-        if self.DM != None:
+        if self.DM is not None:
             self.DM.start(delay)
             
-        if self.atmo != None:
+        if self.atmo is not None:
             self.atmo.start(delay)
         
         if ((self.name == "SCExAO") or (self.name == "CIAO")):
@@ -113,11 +113,11 @@ class instrument(object):
 
         Simple no?
         ------------------------------------------------------------------- '''
-        if self.atmo != None:
+        if self.atmo is not None:
             self.atmo.stop()
-        if self.cam != None:
+        if self.cam is not None:
             self.cam.stop()
-        if self.DM != None:
+        if self.DM is not None:
             self.DM.stop()
 
     # ==================================================
@@ -152,6 +152,30 @@ class instrument(object):
 # ===========================================================
 # ===========================================================
 class phscreen(object):
+    '''Atmospheric Kolmogorov-type phase screen.
+
+    ====================================================================
+
+    Class Attributes:
+    ----------------
+    - sz      : size (sz x sz) of the phase screen         (in pixels)
+    - pdiam   : diameter of the aperture within this array (in pixels)
+    - r1      : 1st normally distributed random array        (sz x sz)
+    - r2      : 2nd normally distributed random array        (sz x sz)
+    - kolm    : the original phase screen                    (sz x sz)
+    - kolm2   : the oversized phase screen    ((sz + pdiam) x (sz + pdiam))
+    - qstatic : an optional quasi static aberration    (pdiam x pdiam)
+    - rms     : total phase screen rms value           (in nanometers)
+    - rms_i   : instant rms inside the pupil           (in nanometers)
+
+    Comment:
+    -------
+    While the attributes are documented here for reference, the prefered
+    way of interacting with them is via the functions defined within the
+    class.
+    ====================================================================
+
+    '''
     # ==================================================
     def __init__(self, name, sz = 512, ld0 = 10, rms = 100.0,
                  shmf='/tmp/phscreen.im.shm'):
@@ -163,13 +187,15 @@ class phscreen(object):
         ----------
         - name : a string describing the instrument
         - sz   : the size of the Fourier array
-        - ld0  : lambda/D (in pixels)
+        - ld0  : lambda/D for the camera (in pixels)
         - rms  : the RMS wavefront error in nm
         - shmf : file name to point to shared memory
         -----------------------------------------------------
         '''
         self.shmf    = shmf
         self.sz      = sz
+        self.rms     = rms
+        self.rms_i   = rms
         self.r1      = np.random.randn(sz,sz)
         self.r2      = np.random.randn(sz,sz)
         self.kolm    = pupil.kolmo(self.r1, self.r2, 5.0, ld0, 
@@ -188,6 +214,10 @@ class phscreen(object):
 
     # ==============================================================
     def start(self, delay=0.1):
+        ''' ----------------------------------------
+        High-level accessor to start the thread of 
+        the phase screen server infinite loop
+        ---------------------------------------- '''
         if not self.keepgoing:
 
             self.kolm2   = np.tile(self.kolm, (2,2))
@@ -203,8 +233,8 @@ class phscreen(object):
     # ==============================================================
     def freeze(self):
         ''' ----------------------------------------
-        Simple high-level accessor to interrupt the
-        thread of the phase screen server infinite loop
+        High-level accessor to interrupt the thread 
+        of the phase screen server infinite loop
         ---------------------------------------- '''
         if self.keepgoing:
             self.keepgoing = False
@@ -215,8 +245,8 @@ class phscreen(object):
     # ==============================================================
     def stop(self):
         ''' ----------------------------------------
-        Simple high-level accessor to interrupt the
-        thread of the phase screen server infinite loop
+        High-level accessor to interrupt the thread
+        of the phase screen server infinite loop
         ---------------------------------------- '''
         if self.keepgoing:
             self.kolm2[:] = 0.0
@@ -228,6 +258,19 @@ class phscreen(object):
 
 
     # ==============================================================
+    def update_rms(self, rms):
+        ''' ------------------------------------------
+        Update the rms of the phase screen on the fly
+        without recalculating one phase screen
+        -----------------------------------------  '''
+        self.kolm *= rms / self.rms
+        self.rms = rms
+
+        self.kolm2   = np.tile(self.kolm, (2,2))
+        self.kolm2   = self.kolm2[:self.sz+self.pdiam,:self.sz+self.pdiam]
+
+        
+    # ==============================================================
     def __loop__(self, delay = 0.1):
 
         while self.keepgoing:
@@ -238,6 +281,8 @@ class phscreen(object):
 
             subk = self.kolm2[self.offx:self.offx+self.pdiam,
                               self.offy:self.offy+self.pdiam]
+            
+            self.rms_i = subk.std()
             self.shm_phs.set_data(subk)
             time.sleep(delay)
 
@@ -245,6 +290,21 @@ class phscreen(object):
 # ===========================================================
 # ===========================================================
 class cam(object):
+    ''' Generic monochoromatic camera class
+
+    ====================================================================
+
+    Class Attributes:
+    ----------------
+
+    Comment:
+    -------
+    While the attributes are documented here for reference, the prefered
+    way of interacting with them is via the functions defined within the
+    class.
+    ====================================================================
+
+    '''
     # ==================================================
     def __init__(self, name, sz = 512, 
                  (xs, ys) = (320, 256), pscale = 10.0, wl = 1.6e-6,
@@ -353,7 +413,7 @@ class cam(object):
 
         wf = (1+0j)*np.ones((self.sz, self.sz)) # full wavefront array
 
-        if dmmap != None: # a DM map was provided
+        if dmmap is not None: # a DM map was provided
             dms = dmmap.shape[0]
             zoom = self.prad0 / (dms/2.0) # scaling factor for DM 2 WF array
             rwf = int(np.round(zoom*dms)) # resized wavefront
@@ -372,7 +432,7 @@ class cam(object):
             
         #pdb.set_trace()
 
-        if phscreen != None: # a phase screen was provided
+        if phscreen is not None: # a phase screen was provided
             wf[x0:x1,x0:x1] += phscreen * nm2phase
 
         wf[self.pupil == False] = 0+0j # re-apply the pupil map
@@ -450,13 +510,13 @@ class cam(object):
 
         # 1. read the shared memory data structures if present
         # ----------------------------------------------------
-        if dm_shm != None:
+        if dm_shm is not None:
             try:
                 dm_map = shm(dm_shm)
             except:
                 print("SHM file %s is not valid?" % (dm_shm,))
 
-        if atmo_shm != None:
+        if atmo_shm is not None:
             try:
                 atm_map = shm(atmo_shm)
             except:
@@ -468,12 +528,12 @@ class cam(object):
         while self.keepgoing:
             cmd_args = "" # commands to be sent to self.make_image()
 
-            if dm_map != None:
+            if dm_map is not None:
                 test = dm_map.get_counter()
                 if test != dm_cntr:
                     cmd_args += "dmmap = dm_map.get_data(),"
 
-            if atm_map != None:
+            if atm_map is not None:
                 test = atm_map.get_counter()
                 if test != atm_cntr:
                     cmd_args += "phscreen = atm_map.get_data(),"
