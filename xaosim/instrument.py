@@ -64,6 +64,44 @@ class instrument(object):
             self.atmo = None
 
     # ==================================================
+    def update_wavelength(self, wl=1.6e-6):
+        ''' A function that changes the wavelength of operation
+
+        This function is an instrument feature and not just a camera
+        as it impacts the size of the computation of the atmospheric
+        phase screen.
+
+        Parameter:
+        ---------
+        - wl: the wavelength (in meters)
+        ------------------------------------------------------------------- '''
+        camwasgoing = False
+        atmwasgoing = False
+
+        if self.cam.keepgoing:
+            camwasgoing = True
+            self.cam.stop()
+            
+        if self.atmo.keepgoing:
+            atmwasgoing = True
+            self.atmo.stop()
+            if (self.atmo.shm_phs.fd != 0):
+                self.atmo.shm_phs.close()
+
+        prev_atmo_shmf = self.cam.atmo_shmf
+        prev_dm_shmf   = self.cam.dm_shmf
+        
+        self.cam = cam(self.name, self.cam.sz,
+                       (self.cam.xs, self.cam.ys), self.cam.pscale, wl)
+        self.atmo = phscreen(self.name, self.cam.sz, self.cam.ld0, self.atmo.rms)
+
+        if camwasgoing:
+            self.cam.start(dm_shmf=prev_dm_shmf, atmo_shmf=prev_atmo_shmf)
+
+        if atmwasgoing:
+            self.atmo.start()
+
+    # ==================================================
     def start(self, delay=0.1):
         ''' A function that starts all the components *servers*
         
@@ -127,7 +165,9 @@ class instrument(object):
         To properly release all the file descriptors that point toward
         the shared memory data structures.
         ------------------------------------------------------------------- '''
-
+        # --- just in case ---
+        self.stop()
+        
         # --- the camera itself ---
         if (self.cam.shm_cam.fd != 0):
             self.cam.shm_cam.close()
@@ -148,6 +188,10 @@ class instrument(object):
 
         if (self.DM.volt.fd != 0):
             self.DM.volt.close()
+
+        self.cam = None
+        self.DM = None
+        self.atmo = None
             
 # ===========================================================
 # ===========================================================
@@ -194,8 +238,8 @@ class phscreen(object):
         '''
         self.shmf    = shmf
         self.sz      = sz
-        self.rms     = rms
-        self.rms_i   = rms
+        self.rms     = np.float(rms)
+        self.rms_i   = np.float(rms)
         self.r1      = np.random.randn(sz,sz)
         self.r2      = np.random.randn(sz,sz)
         self.kolm    = pupil.kolmo(self.r1, self.r2, 5.0, ld0, 
@@ -226,9 +270,9 @@ class phscreen(object):
             self.keepgoing = True
             t = threading.Thread(target=self.__loop__, args=(delay,))
             t.start()
-            print("phase screen server started!")
+            print("The *ATMO* phase screen server was started")
         else:
-            print("phase screen server already running!")
+            print("The *ATMO* phase screen server is already running")
 
     # ==============================================================
     def freeze(self):
@@ -263,7 +307,7 @@ class phscreen(object):
         Update the rms of the phase screen on the fly
         without recalculating one phase screen
         -----------------------------------------  '''
-        self.kolm *= rms / self.rms
+        self.kolm *= np.float(rms) / self.rms
         self.rms = rms
 
         self.kolm2   = np.tile(self.kolm, (2,2))
@@ -338,11 +382,32 @@ class cam(object):
 
         self.px0     = (self.sz-self.xs)/2 # pixel offset for image within array
         self.py0     = (self.sz-self.ys)/2 # pixel offset for image within array
-        self.self_update()
 
         self.phot_noise = False            # default state for photon noise
         self.signal     = 1e6              # default number of photons in frame
         self.keepgoing  = False            # flag for the camera server
+
+        self.dm_shmf    = None             # associated shared memory file for DM
+        self.atmo_shmf  = None             # idem for atmospheric phase screen
+
+        self.self_update()
+
+    # ==================================================
+    def update_signal(self, nph=1e6):
+        ''' Update the strength of the signal
+
+        Automatically sets the *phot_noise* flag to *True*
+
+        Parameters:
+        ----------
+        - nph: the total number of photons inside the frame
+        ------------------------------------------------------------------- '''
+        if (nph > 0):
+            self.signal = nph
+            self.phot_noise = True
+        else:
+            self.signal = 1e6
+            self.phot_noise = False
 
     # ==================================================
     def self_update(self):
@@ -350,6 +415,12 @@ class cam(object):
 
         Self-update: no parameters are required!
         ------------------------------------------------------------------- '''
+        wasgoing = False
+        
+        if self.keepgoing:
+            wasgoing = True
+            self.stop()
+
         self.shm_cam = shm(self.shmf, data = self.frm0, verbose=False)
 
         if  "SCExAO" in self.name:
@@ -367,6 +438,9 @@ class cam(object):
 
         self.pupil   = self.get_pupil(self.name, self.sz, self.prad0)
 
+        if wasgoing:
+            self.start()
+        
     # ==================================================
     def get_pupil(self, name="", size=256, radius=50):
         ''' Choose the pupil function call according to name
@@ -411,7 +485,8 @@ class cam(object):
         mu2phase = 4.0 * np.pi / self.wl / 1e6 # convert microns to phase
         nm2phase = 2.0 * np.pi / self.wl / 1e9 # convert microns to phase
 
-        wf = (1+0j)*np.ones((self.sz, self.sz)) # full wavefront array
+        phs = np.zeros((self.sz, self.sz))      # full phase map
+        #wf = (1+0j)*np.ones((self.sz, self.sz)) # full wavefront array
 
         if dmmap is not None: # a DM map was provided
             dms = dmmap.shape[0]
@@ -426,15 +501,18 @@ class cam(object):
 
             phs0 = Image.fromarray(mu2phase * dmmap)   # phase map
             phs1 = phs0.resize((rwf, rwf), resample=1) # resampled phase map
-            swf  = np.cos(phs1) + 1j * np.sin(phs1)    # small array for wft
-            wf[x0:x1,x0:x1] = swf
+            phs[x0:x1,x0:x1] = phs1
+            #swf  = np.cos(phs1) + 1j * np.sin(phs1)    # small array for wft
+            #wf[x0:x1,x0:x1] = swf
 
             
         #pdb.set_trace()
 
         if phscreen is not None: # a phase screen was provided
-            wf[x0:x1,x0:x1] += phscreen * nm2phase
+            phs[x0:x1,x0:x1] += phscreen * nm2phase
+            #wf[x0:x1,x0:x1] += phscreen * nm2phase
 
+        wf = np.exp(1j*phs)
         wf[self.pupil == False] = 0+0j # re-apply the pupil map
 
         img = shift(np.abs(fft(shift(wf)))**2)
@@ -448,7 +526,7 @@ class cam(object):
 
 
     # ==================================================
-    def start(self, delay=0.1, dm_shm=None, atmo_shm=None):
+    def start(self, delay=0.1, dm_shmf=None, atmo_shmf=None):
         ''' ----------------------------------------
         Starts an independent thread that looks for
         changes on the DM, atmo and qstatic and
@@ -456,18 +534,21 @@ class cam(object):
 
         Parameters:
         ----------
-        - delay     : time (in seconds) between exposures
-        - dm_shm    : shared mem file for DM
-        - atmo_shm  : shared mem file for atmosphere
+        - delay      : time (in seconds) between exposures
+        - dm_shmf    : shared mem file for DM
+        - atmo_shmf  : shared mem file for atmosphere
         ---------------------------------------- '''
         if not self.keepgoing:
+            self.dm_shmf = dm_shmf
+            self.atmo_shmf = atmo_shmf
+            
             self.keepgoing = True
             t = threading.Thread(target=self.__loop__, 
-                                 args=(delay,dm_shm, atmo_shm))
+                                 args=(delay,self.dm_shmf, self.atmo_shmf))
             t.start()
-            print("camera server started!")
+            print("The *CAMERA* server was started")
         else:
-            print("camera server already running.")
+            print("The *CAMERA* server is already running")
 
     # ==================================================
     def stop(self,):
@@ -637,9 +718,9 @@ class DM(object):
             self.keepgoing = True
             t = threading.Thread(target=self.__loop__, args=(delay,))
             t.start()
-            print("DM server started!")
+            print("The *DM* server was started")
         else:
-            print("DM server already running.")
+            print("The *DM* server is already running")
 
     # ==================================================
     def stop(self,):
