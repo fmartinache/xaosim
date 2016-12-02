@@ -306,6 +306,10 @@ class phscreen(object):
         ''' ------------------------------------------
         Update the rms of the phase screen on the fly
         without recalculating one phase screen
+
+        Parameter:
+        ---------
+        - rms: the rms of the phase screen (in nm)
         -----------------------------------------  '''
         self.kolm *= np.float(rms) / self.rms
         self.rms = rms
@@ -397,6 +401,8 @@ class cam(object):
         ''' Update the strength of the signal
 
         Automatically sets the *phot_noise* flag to *True*
+        *IF* the value provided is negative, it sets the *phot_noise* flag
+        back to *False*
 
         Parameters:
         ----------
