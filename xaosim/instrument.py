@@ -5,7 +5,6 @@ import pupil
 from shmlib import shm
 from PIL import Image
 import pdb
-import pyqtgraph as pg
 
 dtor  = np.pi/180.0 # to convert degrees to radians
 
@@ -515,15 +514,10 @@ class cam(object):
             phs0 = Image.fromarray(mu2phase * dmmap)   # phase map
             phs1 = phs0.resize((rwf, rwf), resample=1) # resampled phase map
             phs[x0:x1,x0:x1] = phs1
-            #swf  = np.cos(phs1) + 1j * np.sin(phs1)    # small array for wft
-            #wf[x0:x1,x0:x1] = swf
 
-            
-        #pdb.set_trace()
 
         if phscreen is not None: # a phase screen was provided
             phs[x0:x1,x0:x1] += phscreen * nm2phase
-            #wf[x0:x1,x0:x1] += phscreen * nm2phase
 
         wf = np.exp(1j*phs)
         wf[self.pupil == False] = 0+0j # re-apply the pupil map
