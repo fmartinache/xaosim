@@ -111,7 +111,7 @@ def combine_modes():
     a = np.zeros((dms, dms), dtype='float')
     if sync:
         for i in xrange(z0, z1+1):
-            a += z_vals[i-z0] * mkzer1(i, dms, dms/2, True)#False)
+            a += z_vals[i-z0] * mkzer1(i, dms, dms/2, False)
         dmc.set_data((a*mask).astype('float32'))
 
 # ===============================================================

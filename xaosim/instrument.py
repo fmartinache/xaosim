@@ -5,6 +5,7 @@ import pupil
 from shmlib import shm
 from PIL import Image
 import pdb
+import pyqtgraph as pg
 
 dtor  = np.pi/180.0 # to convert degrees to radians
 
@@ -50,11 +51,14 @@ class instrument(object):
             self.atmo = phscreen(self.name, arr_size, self.cam.ld0, 500.0)
 
         elif self.name == "CIAO":
-            arr_size = 512
+            arr_size = 128
             self.DM  = DM(self.name, 11, 8)
-            self.cam = cam(self.name, arr_size, (320, 256), 60.0, 0.8e-6,
-            shmf = '/tmp/ciao_cam.im.shm')
-            self.atmo = phscreen(self.name, arr_size, self.cam.ld0, 500.0)
+
+            self.cam = SHcam(self.name, sz = 128, dsz = 128, mls = 10,
+                             pscale = 36.56, wl = 0.8e-6, 
+                             shmf = '/tmp/SHcam.im.shm')
+
+            self.atmo = None#phscreen(self.name, arr_size, self.cam.ld0, 500.0)
         else:
             print("""No template for '%s':
             check your spelling or... 
@@ -132,11 +136,13 @@ class instrument(object):
         if self.atmo is not None:
             self.atmo.start(delay)
         
-        if ((self.name == "SCExAO") or (self.name == "CIAO")):
+        if (self.name == "SCExAO"):
             self.cam.start(delay,
                            "/tmp/dmdisp.im.shm",
                            "/tmp/phscreen.im.shm")
 
+        if  (self.name == "CIAO"):
+            self.cam.start(delay, "/tmp/dmdisp.im.shm")
 
     # ==================================================
     def stop(self,):
@@ -462,8 +468,8 @@ class cam(object):
         elif name == "NICMOS":
             exec 'res = pupil.HST((%d,%d), %d, spiders=True)' % (size,size, radius)
         else:
-            print("Should just be an unobstructed circular aperture by default")
-            exec 'res = pupil.subaru((%d,%d), %d, spiders=False)' % (size,size, radius)
+            print("Default: unobstructed circular aperture")
+            exec 'res = pupil.uniform_disk((%d, %d), %d)' % (size, size, radius)
         return(res)
 
     # ==================================================
@@ -472,6 +478,7 @@ class cam(object):
         -------------------------------------------------------
         '''
         return(self.shm_cam.get_data())
+
     # ==================================================
     def make_image(self, phscreen=None, dmmap=None):
         ''' For test purposes only?
@@ -633,7 +640,8 @@ class cam(object):
 # ===========================================================
 class SHcam(cam):
     # ==================================================
-    def __init__(self, name, sz = 512, mls = 10, pscale = 54.79, wl = 0.8e-6,
+    def __init__(self, name, sz = 256, dsz = 128, mls = 10,
+                 pscale = 36.56, wl = 0.8e-6,
                  shmf = '/tmp/SHcam.im.shm'):
 
         ''' Instantiation of a SH camera
@@ -643,6 +651,7 @@ class SHcam(cam):
         ----------
         - name    : a string describing the instrument
         - sz      : an array size for Fourier computations
+        - dsz     : size of the detector in pixels
         - mls     : # of lenses in micro-lens array (mls X mls)
         - pscale  : the plate scale of the image, in mas/pixel
         - wl      : the central wavelength of observation, in meters
@@ -651,16 +660,114 @@ class SHcam(cam):
         ------------------------------------------------------------------- '''
         self.name    = name
         self.sz      = sz
+        self.xs      = dsz
+        self.ys      = dsz
         self.wl      = wl
         self.pscale  = pscale
-
+        self.mls     = mls                 # u-lens array size (in lenses)
+        
         self.shmf    = shmf                # the shared memory "file"
+        self.frm0    = np.zeros((dsz,dsz)) # initial camera frame
 
-        self.self_update()
+        self.px0     = (self.sz-self.xs)/2 # pixel offset for image within array
+        self.py0     = (self.sz-self.ys)/2 # pixel offset for image within array
 
         self.phot_noise = False            # default state for photon noise
         self.signal     = 1e6              # default number of photons in frame
         self.keepgoing  = False            # flag for the camera server
+
+        self.dm_shmf    = None             # associated shared mem file for DM
+        self.atmo_shmf  = None             # idem for atmospheric phase screen
+        
+        self.pupil   = self.get_pupil(self.name, self.sz, self.sz/2)
+
+        #super(SHcam, self).self_update()
+        self.shm_cam = shm(self.shmf, data = self.frm0, verbose=False)
+
+        self.cdiam = self.sz / np.float(self.mls) # oversized u-lens (in pixels)
+        self.rcdiam = np.ceil(self.cdiam)
+
+        #np.round(2*self.prad0/self.mls) # u-lens size (in pixels)
+        
+    # ==================================================
+    def make_image(self, phscreen=None, dmmap=None):
+        ''' For test purposes only?
+
+        Produce a SH image, given a certain number of phase screens
+        -------------------------------------------------------------------
+        Parameters:
+        ----------
+        - atmo    : (optional) atmospheric phase screen
+        - qstatic : (optional) a quasi-static aberration
+        - dmmap   : (optional) a deformable mirror displacement map
+        ------------------------------------------------------------------- '''
+
+        # mu2phase: DM displacement in microns to radians (x2 reflection)
+        # nm2phase: phase screen in nm to radians (no x2 factor)
+
+        mu2phase = 4.0 * np.pi / self.wl / 1e6 # convert microns to phase
+        nm2phase = 2.0 * np.pi / self.wl / 1e9 # convert microns to phase
+
+        mls = self.mls
+        cdiam = self.cdiam
+        rcdiam = self.rcdiam
+
+        phs = np.zeros((self.sz, self.sz))      # full phase map
+        frm = np.zeros((self.ys, self.xs)) # oversized array
+
+        # -------------------------------------------------------------------
+        if dmmap is not None: # a DM map was provided
+            dms = dmmap.shape[0]
+            #zoom = self.prad0 / (dms/2.0) # scaling factor for DM 2 WF array
+            rwf = self.sz#int(np.round(zoom*dms)) # resized wavefront
+        
+            x0 = (self.sz-rwf)/2
+            x1 = x0 + rwf
+
+            xx,yy  = np.meshgrid(np.arange(rwf)-rwf/2, np.arange(rwf)-rwf/2)
+            mydist = np.hypot(yy,xx)
+
+            phs0 = Image.fromarray(mu2phase * dmmap)   # phase map
+            phs1 = phs0.resize((rwf, rwf), resample=1) # resampled phase map
+            phs[x0:x1,x0:x1] = phs1
+
+        # -------------------------------------------------------------------
+        if phscreen is not None: # a phase screen was provided
+            phs[x0:x1,x0:x1] += phscreen * nm2phase
+
+        # -------------------------------------------------------------------
+        wf = np.exp(1j*phs)
+        wf[self.pupil == False] = 0+0j # re-apply the pupil map
+
+        xl0 = np.round(cdiam/2)
+
+        for i in xrange(mls * mls): # cycle ove rthe u-lenses
+            wfs = np.zeros((2*cdiam, 2*cdiam), dtype=complex)
+            li, lj = i / mls, i % mls # i,j indices for the u-lens
+            pi0, pj0 = np.round(li * cdiam), np.round(lj * cdiam)
+
+            wfs[xl0:xl0+cdiam, xl0:xl0+cdiam] = wf[pi0:pi0+cdiam, pj0:pj0+cdiam]
+
+            # compute the image by the u-lens
+            iml = shift(np.abs(fft(shift(wfs)))**2)
+            
+            frm[pi0:pi0+cdiam, pj0:pj0+cdiam] = iml[xl0:xl0+cdiam, xl0:xl0+cdiam]
+
+        # -------------------------------------------------------------------
+        temp0 = Image.fromarray(frm)
+        temp1 = temp0.resize((self.ys, self.xs), resample=1)
+        frm = np.array(temp1).astype(self.shm_cam.ddtype)
+
+
+        if frm.sum() > 0:
+            frm *= self.signal / frm.sum()
+
+        if self.phot_noise: # need to be recast to fit original format
+            frm = np.random.poisson(lam=frm,
+                                    size=None).astype(self.shm_cam.ddtype)
+
+        self.shm_cam.set_data(frm) # push the image to shared memory
+
 
 # ===========================================================
 # ===========================================================

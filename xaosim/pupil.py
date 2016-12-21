@@ -90,6 +90,107 @@ def F_test_figure((ys, xs), ww):
     return(res)
 
 # ==================================================================
+def uniform_disk((ys, xs), radius):
+    ''' ---------------------------------------------------------
+    returns an (ys x xs) array with a uniform disk of radius "radius".
+    ---------------------------------------------------------  '''
+    xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+    mydist = np.hypot(yy,xx)
+    res = np.zeros_like(mydist)
+    res[mydist <= radius] = 1.0
+    return(res)
+
+# ==================================================================
+def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0, 
+                     beta=45.0, thick=0.45, offset=0.0, spiders=True):
+    ''' ---------------------------------------------------------
+    tool function called by other routines to generate specific
+    pupil geometries. Although the result is scaled by pix_rad in 
+    pixels, telescope specifics are provided in meters.
+
+    Parameters:
+    ----------
+    - (ys, xs) : dimensions of the 2D array      (in pixels)
+    - pix_rad  : radius of the circular aperture (in pixels)
+    - pdiam    : diameter of the aperture        (in meters)
+    - odiam    : diameter of the obstruction     (in meters)
+    - beta     : angle of the spiders            (in degrees)
+    - thick    : thickness of the spiders        (in meters)
+    - offset   : spider intersect point distance (in meters)
+    --------------------------------------------------------- '''
+
+    beta    = beta * dtor # converted to radians
+    ro      = odiam / pdiam
+    xx,yy   = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+    mydist  = np.hypot(yy,xx)
+
+    thick  *= pix_rad / pdiam
+    offset *= pix_rad / pdiam
+    epsi    = thick/(2 * np.sin(beta))
+
+    epsix   = thick/(2 * np.sin(beta))
+    epsiy   = thick/(2 * np.cos(beta))
+
+    if spiders:
+        a = ((xx >  offset + epsix) * (abs(np.arctan(yy/(xx-offset-epsix))) < beta))
+        b = ((xx < -offset - epsix) * (abs(np.arctan(yy/(xx+offset+epsix))) < beta))
+        # quadrants 2-3
+        """c = ((yy > 0.0) * ((abs(np.arctan(yy/(xx-offset+epsi))) > beta) +
+                           (abs(np.arctan(yy/(xx+offset-epsi))) > beta)))
+        d = ((yy < 0.0) * ((abs(np.arctan(yy/(xx-offset+epsi))) > beta) +
+                           (abs(np.arctan(yy/(xx+offset-epsi))) > beta)))"""
+
+    # pupil outer and inner edge
+    e = (mydist < pix_rad)
+    if odiam > 0.0:
+        e *= (mydist > ro * pix_rad)
+    if spiders:
+        return((a+b)*e) # return((a+b+c+d)*e)
+    else:
+        return(e)
+
+# ======================================================================
+def HST((xs,ys), radius, spiders=True):
+    # pupil description
+    pdiam, odiam = 2.4, 0.792 # tel. and obst. diameters (meters)
+    thick  = 0.20             # adopted spider thickness (meters)
+    beta   = 45.0             # spider angle
+    offset = 0.0
+    return(four_spider_mask((ys, xs), radius, pdiam, odiam, 
+                            beta=beta, thick=thick, offset=offset, 
+                            spiders=spiders))
+
+def HST2((xs,ys), radius, spiders=True):
+    '''Draws the HST telescope pupil of given radius in a nxm image.
+    
+    Returns an array of booleans, telling what is in and what is out of
+    the Subaru pupil, placed at the center of an array of size (xs, ys).
+
+    '''
+    # pupil description
+    pdiam, odiam = 2.4, 0.792 # tel. and obst. diameters (meters)
+    thick  = 0.20             # adopted spider thickness (meters)
+    beta   = 45.0*np.pi/180.  # spider angle beta
+    ro     = odiam/pdiam      # fraction of aperture obsctructed
+
+    xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+    mydist = np.hypot(yy,xx)
+
+    thick  *= radius/pdiam
+    epsi    = thick/(2*np.sin(beta))
+
+    a = ((xx >   epsi) * (abs(np.arctan(yy/(xx-epsi))) < beta))
+    b = ((xx < - epsi) * (abs(np.arctan(yy/(xx+epsi))) < beta))
+    # quadrants 2-3
+    c = ((yy > 0) * ((abs(np.arctan((yy-epsi)/(xx))) > beta)))
+    d = ((yy < 0) * ((abs(np.arctan((yy+epsi)/(xx))) > beta)))
+    # pupil outer and inner edge
+    e = (((mydist) < radius) * ((mydist) > ro*radius))
+    if spiders: pup = (a+b+c+d)*e
+    else:       pup = e
+    return pup
+
+# ==================================================================
 def subaru((n,m), radius, spiders=True):
     ''' ---------------------------------------------------------
     returns an array that draws the pupil of the Subaru Telescope
@@ -105,30 +206,10 @@ def subaru((n,m), radius, spiders=True):
     pdiam, odiam = 7.92, 2.3  # tel. and obst. diameters (meters)
     thick  = 0.45             # adopted spider thickness (meters)
     offset = 1.278            # spider intersection offset (meters)
-    beta   = 51.75*dtor       # spider angle beta
-    ro     = odiam/pdiam      # fraction of aperture obsctructed
-    
-    xx,yy  = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
-    mydist = np.hypot(yy,xx)
+    beta   = 51.75            # spider angle beta
 
-    thick  *= radius/pdiam
-    offset *= radius/pdiam
-    epsi   = thick/(2*np.sin(beta))
-
-    a = ((xx > offset + epsi) * (abs(np.arctan(yy/(xx-offset-epsi))) < beta))
-    b = ((xx < -offset - epsi) * (abs(np.arctan(yy/(xx+offset+epsi))) < beta))
-    # quadrants 2-3
-    c = ((yy > 0.0) * ((abs(np.arctan(yy/(xx-offset+epsi))) > beta) +
-                       (abs(np.arctan(yy/(xx+offset-epsi))) > beta)))
-    d = ((yy < 0.0) * ((abs(np.arctan(yy/(xx-offset+epsi))) > beta) +
-                       (abs(np.arctan(yy/(xx+offset-epsi))) > beta)))
-    # pupil outer and inner edge
-    e = (mydist < radius) * (mydist > ro*radius)
-
-    if spiders:
-        return((a+b+c+d)*e)
-    else:
-        return(e)
+    return(four_spider_mask((m, n), radius, pdiam, odiam, 
+                            beta, thick, offset, spiders))
 
 # ==================================================================
 def subaru_asym((xs, ys), radius, spiders=True, PA=0.0):
@@ -156,37 +237,6 @@ def subaru_asym((xs, ys), radius, spiders=True, PA=0.0):
         pup = pup * (1 - (a * b * (xx > 0)))
     else:
         pup = pup *( 1 - (a * b * (xx < 0)))
-    return pup
-
-# ======================================================================
-def HST((xs,ys), radius, spiders=True):
-    '''Draws the HST telescope pupil of given radius in a nxm image.
-    
-    Returns an array of booleans, telling what is in and what is out of
-    the Subaru pupil, placed at the center of an array of size (xs, ys).
-
-    '''
-    # pupil description
-    pdiam, odiam = 2.4, 0.792 # tel. and obst. diameters (meters)
-    thick  = 0.20             # adopted spider thickness (meters)
-    beta   = 45.0*np.pi/180.  # spider angle beta
-    ro     = odiam/pdiam      # fraction of aperture obsctructed
-
-    xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
-    mydist = np.hypot(yy,xx)
-
-    thick  *= radius/pdiam
-    epsi    = thick/(2*np.sin(beta))
-
-    a = ((xx > epsi) * (abs(np.arctan(yy/(xx-epsi))) < beta))
-    b = ((xx < - epsi) * (abs(np.arctan(yy/(xx+epsi))) < beta))
-    # quadrants 2-3
-    c = ((yy > 0) * ((abs(np.arctan((yy-epsi)/(xx))) > beta)))
-    d = ((yy < 0) * ((abs(np.arctan((yy+epsi)/(xx))) > beta)))
-    # pupil outer and inner edge
-    e = (((mydist) < radius) * ((mydist) > ro*radius))
-    if spiders: pup = (a+b+c+d)*e
-    else:       pup = e
     return pup
 
 # ======================================================================
