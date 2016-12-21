@@ -1,4 +1,5 @@
 import numpy as np
+import pdb
 
 shift = np.fft.fftshift
 fft   = np.fft.fft2
@@ -135,17 +136,18 @@ def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0,
         a = ((xx >  offset + epsix) * (abs(np.arctan(yy/(xx-offset-epsix))) < beta))
         b = ((xx < -offset - epsix) * (abs(np.arctan(yy/(xx+offset+epsix))) < beta))
         # quadrants 2-3
-        """c = ((yy > 0.0) * ((abs(np.arctan(yy/(xx-offset+epsi))) > beta) +
+        c = ((yy > 0.0) * ((abs(np.arctan(yy/(xx-offset+epsi))) > beta) +
                            (abs(np.arctan(yy/(xx+offset-epsi))) > beta)))
         d = ((yy < 0.0) * ((abs(np.arctan(yy/(xx-offset+epsi))) > beta) +
-                           (abs(np.arctan(yy/(xx+offset-epsi))) > beta)))"""
+                           (abs(np.arctan(yy/(xx+offset-epsi))) > beta)))
 
     # pupil outer and inner edge
     e = (mydist < pix_rad)
     if odiam > 0.0:
         e *= (mydist > ro * pix_rad)
     if spiders:
-        return((a+b)*e) # return((a+b+c+d)*e)
+        #    return((a+b)*e) #
+        return((a+b+c+d)*e)
     else:
         return(e)
 
@@ -212,31 +214,66 @@ def subaru((n,m), radius, spiders=True):
                             beta, thick, offset, spiders))
 
 # ==================================================================
-def subaru_asym((xs, ys), radius, spiders=True, PA=0.0):
+def subaru_dbl_asym((xs, ys), radius, spiders=True, PA1=0.0, PA2=90.0,
+                    thick1=0.15, thick2=0.15):
+    ''' -------------------------------------------------------------
+    Returns a pupil mask with *two* asymmetric arms for two distinct
+    position angles.
+
+    Parameters:
+    - (xs, ys) : dimensions of the 2D array
+    - radius   : outer radius of the aperture
+    - spiders  : boolean (w or without spiders)
+    - PA1      : position angle of arm #1 (in degrees)
+    - PA2      : position angle of arm #2 (in degrees)
+    - thick1   : asymm. arm #1 thickness (% of aperture diameter)
+    - thick2   : asymm. arm #2 thickness (% of aperture diameter)
+    ------------------------------------------------------------- '''
+    a = subaru_asym((xs, ys), radius, spiders=spiders, PA=PA1, thick=thick1)
+    b = subaru_asym((xs, ys), radius, spiders=spiders, PA=PA2, thick=thick2)
+    return(a*b)
+
+# ==================================================================
+def subaru_asym((xs, ys), radius, spiders=True, PA=0.0, thick=0.15):
     ''' -------------------------------------------------------------
     Returns a pupil mask with an asymmetric arm that mostly follows
     the geometry of the original APF-WFS.
+
+    Parameters:
+    - (xs, ys) : dimensions of the 2D array
+    - radius   : outer radius of the aperture
+    - spiders  : boolean (w or without spiders)
+    - PA       : position angle of the arm (in degrees)
+    - thick    : asymm. arm thickness (% of aperture diameter)
     ------------------------------------------------------------- '''
 
     # pupil description
-    ro     = 0.3
-    thick  = 0.5       # arm thickness (% of central)
-    th = PA * dtor     # convert PA into radians
+
+    th = np.mod(PA, 360.0) * dtor # convert PA into radians
     th0 = np.mod(th, np.pi)
     xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
-    #mydist = np.hypot(yy,xx)
 
-    h = thick*ro*radius/np.cos(th0)
+    h = thick * radius / np.abs(np.cos(th0))
 
     pup = subaru((xs,ys), radius, spiders)    
 
     a = (yy > xx*np.tan(th0) - h)
     b = (yy < xx*np.tan(th0) + h)
-
-    if th < np.pi:
-        pup = pup * (1 - (a * b * (xx > 0)))
+    e = (a * b)
+    
+    if th < np.pi/4:
+        c = (xx > 0)
+    elif th < 3*np.pi/4:
+        c = (yy > 0)
+    elif th < 5*np.pi/4:
+        c = (xx < 0)
+    elif th < 7*np.pi/4:
+        c = (yy < 0)
     else:
-        pup = pup *( 1 - (a * b * (xx < 0)))
+        c = (xx > 0)
+
+    pup = pup * (1 - (e * c))
+    
     return pup
 
 # ======================================================================
