@@ -127,32 +127,39 @@ def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0,
 
     thick  *= pix_rad / pdiam
     offset *= pix_rad / pdiam
-    epsi    = thick/(2 * np.sin(beta))
 
-    epsix   = thick/(2 * np.sin(beta))
-    epsiy   = thick/(2 * np.cos(beta))
-
+    x0      = thick/(2 * np.sin(beta)) + offset 
+    y0      = thick/(2 * np.cos(beta)) - offset * np.tan(beta)
+    
     if spiders:
-        a = ((xx >  offset + epsix) * (abs(np.arctan(yy/(xx-offset-epsix))) < beta))
-        b = ((xx < -offset - epsix) * (abs(np.arctan(yy/(xx+offset+epsix))) < beta))
-        # quadrants 2-3
-        c = ((yy > 0.0) * ((abs(np.arctan(yy/(xx-offset+epsi))) > beta) +
-                           (abs(np.arctan(yy/(xx+offset-epsi))) > beta)))
-        d = ((yy < 0.0) * ((abs(np.arctan(yy/(xx-offset+epsi))) > beta) +
-                           (abs(np.arctan(yy/(xx+offset-epsi))) > beta)))
-
+        # quadrants left - right
+        a = ((xx >=  x0) * (np.abs(np.arctan(yy/(xx-x0))) < beta))
+        b = ((xx <= -x0) * (np.abs(np.arctan(yy/(xx+x0))) < beta))
+        # quadrants up - down
+        c = ((yy >= 0.0) * (np.abs(np.arctan((yy-y0)/xx)) > beta))
+        d = ((yy <  0.0) * (np.abs(np.arctan((yy+y0)/xx)) > beta))
+        
     # pupil outer and inner edge
     e = (mydist < pix_rad)
     if odiam > 0.0:
         e *= (mydist > ro * pix_rad)
     if spiders:
-        #    return((a+b)*e) #
         return((a+b+c+d)*e)
     else:
         return(e)
 
 # ======================================================================
 def HST((xs,ys), radius, spiders=True):
+    ''' -------------------------------------------------------------
+    Draws the Hubble Space Telescope pupil of given radius in a array
+
+    Parameters:
+    ----------
+
+    - (xs, ys) : dimensions of the 2D array
+    - radius   : outer radius of the aperture (in pixels)
+    - spiders  : boolean (w/ or w/out spiders)
+    -------------------------------------------------------------  '''
     # pupil description
     pdiam, odiam = 2.4, 0.792 # tel. and obst. diameters (meters)
     thick  = 0.20             # adopted spider thickness (meters)
@@ -161,36 +168,6 @@ def HST((xs,ys), radius, spiders=True):
     return(four_spider_mask((ys, xs), radius, pdiam, odiam, 
                             beta=beta, thick=thick, offset=offset, 
                             spiders=spiders))
-
-def HST2((xs,ys), radius, spiders=True):
-    '''Draws the HST telescope pupil of given radius in a nxm image.
-    
-    Returns an array of booleans, telling what is in and what is out of
-    the Subaru pupil, placed at the center of an array of size (xs, ys).
-
-    '''
-    # pupil description
-    pdiam, odiam = 2.4, 0.792 # tel. and obst. diameters (meters)
-    thick  = 0.20             # adopted spider thickness (meters)
-    beta   = 45.0*np.pi/180.  # spider angle beta
-    ro     = odiam/pdiam      # fraction of aperture obsctructed
-
-    xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
-    mydist = np.hypot(yy,xx)
-
-    thick  *= radius/pdiam
-    epsi    = thick/(2*np.sin(beta))
-
-    a = ((xx >   epsi) * (abs(np.arctan(yy/(xx-epsi))) < beta))
-    b = ((xx < - epsi) * (abs(np.arctan(yy/(xx+epsi))) < beta))
-    # quadrants 2-3
-    c = ((yy > 0) * ((abs(np.arctan((yy-epsi)/(xx))) > beta)))
-    d = ((yy < 0) * ((abs(np.arctan((yy+epsi)/(xx))) > beta)))
-    # pupil outer and inner edge
-    e = (((mydist) < radius) * ((mydist) > ro*radius))
-    if spiders: pup = (a+b+c+d)*e
-    else:       pup = e
-    return pup
 
 # ==================================================================
 def subaru((n,m), radius, spiders=True):
@@ -221,6 +198,8 @@ def subaru_dbl_asym((xs, ys), radius, spiders=True, PA1=0.0, PA2=90.0,
     position angles.
 
     Parameters:
+    ----------
+
     - (xs, ys) : dimensions of the 2D array
     - radius   : outer radius of the aperture
     - spiders  : boolean (w or without spiders)
@@ -240,6 +219,8 @@ def subaru_asym((xs, ys), radius, spiders=True, PA=0.0, thick=0.15):
     the geometry of the original APF-WFS.
 
     Parameters:
+    ----------
+
     - (xs, ys) : dimensions of the 2D array
     - radius   : outer radius of the aperture
     - spiders  : boolean (w or without spiders)
@@ -394,8 +375,11 @@ def kolmo(rnd1, rnd2, fc, ld0, correc=1e0, rms=0.1):
     
     Wavefront simulation of total size "size", following Kolmogorov statistics
     with a Fried parameter "r0", with partial AO correction up to a cutoff 
-    frequency "fc". Parameters are:
-    
+    frequency "fc". 
+
+    Parameters:
+    ----------
+
     - rnd1, rnd2 : arrays of normally distributed numbers
     - fc         : cutoff frequency (in lambda/D)
     - ld0        : lambda/D (in pixels)

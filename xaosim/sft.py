@@ -1,5 +1,6 @@
-'''Test dodumentation for SFT, the "slow" Fourier Transform using the theory
-    described in: http://adsabs.harvard.edu/abs/2007OExpr..1515935S
+''' ===================================================================
+Test dodumentation for SFT, the "slow" Fourier Transform using the 
+theory described in: http://adsabs.harvard.edu/abs/2007OExpr..1515935S
 
 Example:
 -------
@@ -14,9 +15,9 @@ over a +/- 10 lambda/D field of view
 
 >> lyot = sft.isft(ca_focal, 200, 20)
 
-Will compute the complex amplitude in a pupil plane located downstream from the
-previous focal plane, using only the spatial frequencies present in the array
-that was previously computed.
+Will compute the complex amplitude in a pupil plane located downstream 
+from the previous focal plane, using only the spatial frequencies 
+present in the array that was previously computed.
 '''
 
 import numpy as np
@@ -32,6 +33,7 @@ def sft(A2, NB, m, inv=False):
 
     Parameters:
     ----------
+
     - A2 : the 2D original array
     - NB : the linear size of the result array (integer)
     - m  : m/2 = maximum spatial frequency to be computed (in l/D)
