@@ -103,7 +103,8 @@ def uniform_disk((ys, xs), radius):
 
 # ==================================================================
 def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0, 
-                     beta=45.0, thick=0.45, offset=0.0, spiders=True):
+                     beta=45.0, thick=0.45, offset=0.0,
+                     spiders=True, split=False):
     ''' ---------------------------------------------------------
     tool function called by other routines to generate specific
     pupil geometries. Although the result is scaled by pix_rad in 
@@ -118,6 +119,8 @@ def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0,
     - beta     : angle of the spiders            (in degrees)
     - thick    : thickness of the spiders        (in meters)
     - offset   : spider intersect point distance (in meters)
+    - spiders  : flag to true to include spiders (boolean)
+    - split    : split the mask into four parts  (boolean)
     --------------------------------------------------------- '''
 
     beta    = beta * dtor # converted to radians
@@ -133,21 +136,39 @@ def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0,
     
     if spiders:
         # quadrants left - right
-        a = ((xx >=  x0) * (np.abs(np.arctan(yy/(xx-x0))) < beta))
-        b = ((xx <= -x0) * (np.abs(np.arctan(yy/(xx+x0))) < beta))
+        a = ((xx >=  x0) * (np.abs(np.arctan(yy/(xx-x0+1e-8))) < beta))
+        b = ((xx <= -x0) * (np.abs(np.arctan(yy/(xx+x0+1e-8))) < beta))
         # quadrants up - down
-        c = ((yy >= 0.0) * (np.abs(np.arctan((yy-y0)/xx)) > beta))
-        d = ((yy <  0.0) * (np.abs(np.arctan((yy+y0)/xx)) > beta))
+        c = ((yy >= 0.0) * (np.abs(np.arctan((yy-y0)/(xx+1e-8))) > beta))
+        d = ((yy <  0.0) * (np.abs(np.arctan((yy+y0)/(xx+1e-8))) > beta))
         
     # pupil outer and inner edge
     e = (mydist < pix_rad)
     if odiam > 0.0:
         e *= (mydist > ro * pix_rad)
+
+    if split:
+        res = np.array([a*e, b*e, c*e, d*e])
+        return(res)
+    
     if spiders:
         return((a+b+c+d)*e)
     else:
         return(e)
 
+# ======================================================================
+def four_spider_grid_model(th1=0.0, th2=90.0, apdiam=8.0, odiam=2.3,
+                           beta=51.75, thick=0.45, offset=0.0,
+                           spiders=True, split=False):
+    ''' -------------------------------------------------------------
+    Tool that corresponds produces a discrete representation of the
+    pupil produced by the four_spider_mask() routine.
+
+    Returns an array (possibly split into quadrants) of coordinates
+    of points contained within the aperture.
+    ------------------------------------------------------------- '''
+    return(0)
+    
 # ======================================================================
 def HST((xs,ys), radius, spiders=True):
     ''' -------------------------------------------------------------

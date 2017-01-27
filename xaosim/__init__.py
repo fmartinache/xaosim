@@ -61,4 +61,31 @@
       ---------------------------------------------------------------------- '''
 
 from instrument import *
+import numpy as np
+from numpy.fft import fftshift as shift
+from numpy.fft import fft2 as fft
+from numpy.fft import ifft2 as ifft
 
+def img_coordinates(xsz, ysz):
+    """ ------------------------------------------------------------------------
+    Returns a list of two 2D arrays containing (x,y) coordinates for each pixel.
+
+    Parameters:
+    ----------
+    - xsz: the horizontal dimension of the array (in the np, pyplot)
+    - ysz: the vertical dimension of the array
+    ------------------------------------------------------------------------ """
+    xx, yy = np.meshgrid(np.arange(xsz)-xsz/2, np.arange(ysz)-ysz/2)
+    return(xx, yy)
+
+def dist(xsz, ysz):
+    """ ------------------------------------------------------------------------
+    Returns a list of two 2D arrays containing (x,y) coordinates for each pixel.
+
+    Parameters:
+    ----------
+    - xsz: the horizontal dimension of the array (in the np, pyplot)
+    - ysz: the vertical dimension of the array
+    ------------------------------------------------------------------------ """
+    (xx, yy) = img_coordinates(xsz, ysz)
+    return(np.hypot(yy, xx))
