@@ -1,5 +1,6 @@
 import numpy as np
 import pdb
+from scipy.ndimage import rotate
 
 shift = np.fft.fftshift
 fft   = np.fft.fft2
@@ -234,6 +235,26 @@ def subaru_dbl_asym((xs, ys), radius, spiders=True, PA1=0.0, PA2=90.0,
     return(a*b)
 
 # ==================================================================
+def radial_arm((xs,ys), radius, PA=0.0, thick=0.15):
+    ''' -------------------------------------------------------------
+    Produces a pupil mask for an occulting radial arm for a given
+    position angle and thickness.
+
+    Parameters:
+    - (xs, ys) : dimensions of the 2D array   (integer # of pixels)
+    - radius   : outer radius of the aperture (integer # of pixels)
+    - PA       : position angle of the arm    (degrees)
+    - thick    : fraction of the ap. diameter (float)
+    ------------------------------------------------------------- '''
+    res = np.ones((ys, xs))
+    ang = np.mod(PA, 360.0)
+    xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+    zone = (xx > 0) * (np.abs(yy) <= thick*radius)
+    res[zone] = 0.0
+    res = rotate(res, ang, order=0, reshape=False)
+    return(res.astype('int'))
+
+# ==================================================================
 def subaru_asym((xs, ys), radius, spiders=True, PA=0.0, thick=0.15):
     ''' -------------------------------------------------------------
     Returns a pupil mask with an asymmetric arm that mostly follows
@@ -249,34 +270,15 @@ def subaru_asym((xs, ys), radius, spiders=True, PA=0.0, thick=0.15):
     - thick    : asymm. arm thickness (% of aperture diameter)
     ------------------------------------------------------------- '''
 
-    # pupil description
+    #th = np.mod(PA, 360.0) * dtor # convert PA into radians
+    #th0 = np.mod(th, np.pi)
+    #xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+    #h = thick * radius / np.abs(np.cos(th0))
 
-    th = np.mod(PA, 360.0) * dtor # convert PA into radians
-    th0 = np.mod(th, np.pi)
-    xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+    pup = subaru((xs,ys), radius, spiders)
+    arm = radial_arm((xs,ys), radius, PA=PA, thick=thick)
 
-    h = thick * radius / np.abs(np.cos(th0))
-
-    pup = subaru((xs,ys), radius, spiders)    
-
-    a = (yy > xx*np.tan(th0) - h)
-    b = (yy < xx*np.tan(th0) + h)
-    e = (a * b)
-    
-    if th < np.pi/4:
-        c = (xx > 0)
-    elif th < 3*np.pi/4:
-        c = (yy > 0)
-    elif th < 5*np.pi/4:
-        c = (xx < 0)
-    elif th < 7*np.pi/4:
-        c = (yy < 0)
-    else:
-        c = (xx > 0)
-
-    pup = pup * (1 - (e * c))
-    
-    return pup
+    return(pup * arm)
 
 # ======================================================================
 def segmented(sz, prad, srad, gap=False):
