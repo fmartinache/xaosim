@@ -393,6 +393,27 @@ def hex_grid(sz, prad, srad, gap=False):
     return(pup)
 
 # ======================================================================
+def mklwe_bank(sz):
+    quads = four_spider_mask((sz, sz), sz/2, 8.0, 0.0,
+                             beta=51.75, thick=0.0, offset=1.28,
+                             spiders=True, split=True)
+    xx, yy = np.meshgrid(np.arange(sz)-sz/2, np.arange(sz)-sz/2)
+    
+    nm = 12
+    bank = np.zeros((nm, sz, sz))
+    for ii in xrange(nm):
+        if ((ii % 3) == 0):
+            bank[ii] = 1.0 * quads[ii / 3]
+        elif ((ii % 3) == 1):
+            temp = xx - xx[quads[ii / 3]].mean()
+            bank[ii] = temp * quads[ii / 3]
+        elif ((ii % 3) == 2):
+            temp = yy - yy[quads[ii / 3]].mean()
+            bank[ii] = temp * quads[ii / 3]
+        bank[ii] /= bank[ii].std()
+    return(bank)
+
+# ======================================================================
 def kolmo(rnd1, rnd2, fc, ld0, correc=1e0, rms=0.1):
     '''Does a Kolmogorov wavefront simulation with partial AO correction.
     
