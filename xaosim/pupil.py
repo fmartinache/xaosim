@@ -158,18 +158,76 @@ def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0,
         return(e)
 
 # ======================================================================
-def four_spider_grid_model(th1=0.0, th2=90.0, apdiam=8.0, odiam=2.3,
-                           beta=51.75, thick=0.45, offset=0.0,
-                           spiders=True, split=False):
+def four_quadrant_model_split(mask_xy, beta=51.75, thick=0.45, offset=1.28):
     ''' -------------------------------------------------------------
-    Tool that corresponds produces a discrete representation of the
-    pupil produced by the four_spider_mask() routine.
+    Tool that corresponds takes a set of coordinates (model mask) 
+    such as the ones used by XARA, and given the spider geometry 
+    parameters, splits it into quadrants.
 
-    Returns an array (possibly split into quadrants) of coordinates
-    of points contained within the aperture.
+    Parameters:
+    ----------
+
+    - mask_xy: a (Nx2) array of (x,y) coordinate points (in meters)
+    - beta: spider angle (in degrees)
+    - thick: the thickness of the spiders (in meters)
+    - offset: spider intersect offset (in meters)
+
+    Note:
+    ----
+
+    Default values are set for SCExAO.
     ------------------------------------------------------------- '''
-    return(0)
+    xx = mask_xy[:,0]
+    yy = mask_xy[:,1]
+
+    beta1 = beta * dtor
+
+    x0  = thick / (4 * np.sin(beta1)) + 0.5 * offset
+    y0  = thick / (4 * np.cos(beta1)) - 0.5 * offset * np.tan(beta1)
+
+    quad1 = (xx >=   0) * (np.abs(np.arctan(yy/(xx-x0+1e-8))) < beta1)
+    quad2 = (xx <= -x0) * (np.abs(np.arctan(yy/(xx+x0+1e-8))) < beta1)
+    quad3 = (yy >= 0.0) * (np.abs(np.arctan((yy-y0)/(xx+1e-8))) > beta1)
+    quad4 = (yy <= 0.0) * (np.abs(np.arctan((yy+y0)/(xx+1e-8))) > beta1)
     
+    res = np.array([[xx[quad1], yy[quad1]],
+                    [xx[quad2], yy[quad2]],
+                    [xx[quad3], yy[quad3]],
+                    [xx[quad4], yy[quad4]]])
+    return(res)
+
+# ======================================================================
+def lwe_mode_vector(split_xyq, iQuad, iMode):
+    ''' -------------------------------------------------------------
+    Tool that buids a vector containing a LWE mode of index i0, for
+    a given split pupil coordinates model, resulting from the
+    four_quadrant_model_split() function.
+
+    Parameters:
+    ----------
+
+    - split_xyq : array of xy - coordinates (in meters)
+    - iQuad     : index of quadrant (0 - 4)
+    - iMode     : index of mode (0: piston, 1: tip, 2: tilt)
+    ------------------------------------------------------------- '''
+
+    nq = split_xyq.shape[0]
+
+    vector = np.array([])
+    for iq in xrange(nq):
+        if iq != iQuad:
+            vector = np.append(vector, np.zeros(split_xyq[iq,0].size))
+        else:
+            if iMode == 0:
+                vector = np.append(vector, np.ones(split_xyq[iq,0].size))
+            elif iMode == 1:
+                vector = np.append(vector, split_xyq[iq,0])
+            else:
+                vector = np.append(vector, split_xyq[iq,1])
+
+    vector /= vector.std()
+    return(vector)
+        
 # ======================================================================
 def HST((xs,ys), radius, spiders=True):
     ''' -------------------------------------------------------------
@@ -393,9 +451,22 @@ def hex_grid(sz, prad, srad, gap=False):
     return(pup)
 
 # ======================================================================
-def mklwe_bank(sz):
-    quads = four_spider_mask((sz, sz), sz/2, 8.0, 0.0,
-                             beta=51.75, thick=0.0, offset=1.28,
+def lwe_mode_bank_2D(sz, odiam=8.0, beta=51.75, offset=1.28):
+    ''' -------------------------------------------------------------
+    Builds a 3D array containing pupil images of the 12 raw LWE
+    modes: piston, tip and tilt, for the four expected quadrants
+    of a pupil like Subaru, VLT, ...
+
+    Parameters:
+    ----------
+
+    - sz: size of the 2D pupil images to be produced
+    - odiam: pupil outer diameter     (default 8.0,   in meters)
+    - beta: spider angle              (default 51.75, in degrees)
+    - offset: spider intersect offset (default: 1.28, in meters)
+    ------------------------------------------------------------- '''
+    quads = four_spider_mask((sz, sz), sz/2, odiam, 0.0,
+                             beta=beta, thick=0.0, offset=offset,
                              spiders=True, split=True)
     xx, yy = np.meshgrid(np.arange(sz)-sz/2, np.arange(sz)-sz/2)
     
