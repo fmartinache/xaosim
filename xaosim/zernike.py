@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.misc import factorial as fac
 from scipy import *
-import pdb
 
 shift = np.fft.fftshift
 
@@ -88,8 +87,26 @@ def mkzer(n, m, size, rad, limit=False):
     res /= rms0
     return res
 
+def zer_mode_bank_2D(sz, i0, i1):
+    ''' ------------------------------------------
+    Returns a 3D array containing 2D (sz x sz) 
+    maps of Zernike modes for Noll index going 
+    from i0 to i1 included.
+
+    Parameters:
+    ----------
+    - sz: the size of the contained 2D arrays
+    - i0: the first Zernike index to be used
+    - i1: the last Zernike index to be used
+    ------------------------------------------ '''
+    dZ = i1 - i0 + 1
+    res = np.zeros((dZ, sz, sz))
+    for i in xrange(i0, i1+1):
+        res[i-i0] = mkzer1(i, sz, sz/2, True)
+    return(res)
+    
 def mkzer1(j, sz, rad, limit=False):
-    '''------------------------------------------
+    ''' ------------------------------------------
     returns a 2D array of size sz,
     containing the j^th Zernike polynomial
     within a disk of radius rad
@@ -133,7 +150,6 @@ def mk_pattern(n, m):
     x,y = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
     dd = np.roll(np.hypot(y,x), 8, axis=0)
     b = np.zeros_like(dd)
-    #pdb.set_trace()
     b[dd < 12] = 1.0
     b[dd <  7] = 0.0
     b[x < 0] = 0.0
