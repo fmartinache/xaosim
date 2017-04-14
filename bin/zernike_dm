@@ -4,6 +4,7 @@ import pygame, sys
 from pygame.locals import *
 import numpy as np
 import pdb
+import socket
 
 # =================================================
 # =================================================
@@ -14,6 +15,7 @@ chn = 4
 
 from xaosim.shmlib  import shm
 from xaosim.zernike import mkzer1
+from xaosim.zernike import zer_mode_bank_2D
 
 import xaosim.myjoystick
 
@@ -58,7 +60,7 @@ Frantz.
 # ------------------------------------------------------------------
 #                       global variables
 # ------------------------------------------------------------------
-z0, z1 = 4, 11              # Zernike indices
+z0, z1 = 4, 13              # Zernike indices
 dz = z1 - z0 + 1
 
 wmodes = ["MANUAL", "AUTO", "RECAL"]
@@ -72,8 +74,11 @@ z_vals = np.zeros(10)      # zernike coefficients
 sync = True
 # -----------------------
 
-dmc  = shm('/tmp/dmdisp%d.im.shm' % (chn,)) # DM channel (perturbation)
-dms  = dmc.size[0]                          # DM size
+if 'scexao' in socket.gethostname():
+    dmc  = shm('/tmp/dm00disp%02d.im.shm' % (chn,)) # DM channel (perturbation)
+else: # simulation rig
+    dmc  = shm('/tmp/dmdisp%d.im.shm' % (chn,)) # DM channel (perturbation)
+dms = dmc.size[0]                               # DM size
 
 # -----------------------
 #   set up the window
@@ -93,25 +98,49 @@ screen = pygame.display.set_mode((XW, YW), 0, 32)
 pygame.display.set_caption('Zernike')
 
 mask = np.ones((dms, dms),    dtype=np.float32) # to remove non-existing actuators
-mask[:3,0] = 0.0
-mask[0,:3] = 0.0
-mask[1, 1] = 0.0
-mask[-3:,0] = 0.0
-mask[-1,:3] = 0.0
-mask[-2,1]  = 0.0
-mask[0,-3:] = 0.0
-mask[1,-2:] = 0.0
-mask[2,-1]  = 0.0
-mask[-1,-3:] = 0.0
-mask[-2,-2:] = 0.0
-mask[-3,-1]  = 0.0
+
+# =========================================================
+def select_ZER_basis(dms):
+    ''' ---------------------------------------------------
+    --------------------------------------------------- '''
+    i0, i1 = 4, 14
+    nzer = i1-i0
+
+    if dms < 50: # ---- for the ALPAO DM ----
+        for i in xrange(nzer):
+            bank_dm_modes[i] = mkzer1(i+i0, dms, dms/2, False)
+
+        mask[:3,0] = 0.0
+        mask[0,:3] = 0.0
+        mask[1, 1] = 0.0
+        mask[-3:,0] = 0.0
+        mask[-1,:3] = 0.0
+        mask[-2,1]  = 0.0
+        mask[0,-3:] = 0.0
+        mask[1,-2:] = 0.0
+        mask[2,-1]  = 0.0
+        mask[-1,-3:] = 0.0
+        mask[-2,-2:] = 0.0
+        mask[-3,-1]  = 0.0
+
+    else: # ------- for the SCExAO DM -------
+        dmpz = 46 # pupil size in dm actuators
+        temp = zer_mode_bank_2D(dmpz, i0, i1)
+        bank_dm_modes = np.zeros((nzer, dms, dms)).astype('float32')
+        for i in xrange(nzer):
+            bank_dm_modes[i, 0:dmpz, 1:dmpz+1] = temp[i]
+
+    return(bank_dm_modes)
+# ===============================================================
+
 
 # ===============================================================
 def combine_modes():
+    global mode_basis
     a = np.zeros((dms, dms), dtype='float')
     if sync:
         for i in xrange(z0, z1+1):
-            a += z_vals[i-z0] * mkzer1(i, dms, dms/2, False)
+            a += z_vals[i-z0] * mode_basis[i-z0]
         dmc.set_data((a*mask).astype('float32'))
 
 # ===============================================================
@@ -139,6 +168,8 @@ def draw_cursor(surf, (xc, yc, hh, ww), (vmin, vmax, vcur), active):
 # ------------------------------------------------------------------
 #              !!! now we are in business !!!!
 # ------------------------------------------------------------------
+
+mode_basis = select_ZER_basis(dms)
 
 WHITE = (255, 255, 255)
 GREEN = (  0, 153,  76) 
@@ -406,7 +437,7 @@ while True: # the main game loop
         pygame.draw.rect(screen, FGCOL, (BW,BW,FW/3, 2*ZH), 2)
 
         for i in xrange(z0, z1+1):
-            yy = 300 + 50 * (i - z0)
+            yy = 200 + 50 * (i - z0)
             hdl = font1.render(zlabel[i-z0],  True, FGCOL)
 
             zone = hdl.get_rect()

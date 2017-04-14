@@ -53,7 +53,7 @@ class shm:
 
             self.naxis        = np.size(data.shape)
             temp              = [0,0,0]
-            temp[:self.naxis] = data.shape
+            temp[:self.naxis] = data.shape[::-1] # to match SCExAO's image size
             self.size         = tuple(temp)
             xs, ys, zs        = self.size
             self.idtype       = conv[data.dtype.name]
@@ -161,8 +161,8 @@ class shm:
             self.buf[200:200+self.nel*self.elt_sz], dtype=self.ddtype)
 
         if reform:
-            #data = data.reshape(self.size[:self.naxis][::-1])
-            data = data.reshape(self.size[:self.naxis])
+            # this line for SCExAO
+            data = data.reshape(self.size[:self.naxis][::-1])
 
         return(data)
 
