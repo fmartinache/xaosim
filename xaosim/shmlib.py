@@ -187,3 +187,31 @@ class shm:
             status = False
         return(status)
 
+    # ==========================
+    def set_data0(self, data):
+        aa = array.array('f', (np.hstack(data.astype('f'))).tolist())
+        try:
+            self.buf[200:200+self.nel*self.elt_sz] = aa.tostring()
+            counter, = struct.unpack('l',   self.buf[176:184])
+            counter += 1
+            self.buf[176:184] = struct.pack('l', counter)
+            if  ((("dm" in self.fname) and ("disp" in self.fname)) or ("blobcam" in self.fname)):
+                os.system("imsempost %s"%(self.fname,))
+        except:
+            print("Failed to write buffer to shared mem structure")
+        return(True)
+
+    # ==========================
+    def save_as_fits(self, fitsname):
+        '''Rudimentary fits file export
+
+        Should eventually include keywords information.
+        '''
+        pf.writeto(fitsname, self.get_data(), clobber=True)
+
+    # ==========================
+    def get_expt(self):
+        x0 = 164363
+        self.expt, = struct.unpack('d', self.buf[x0+61:x0+69])
+        return self.expt
+    
