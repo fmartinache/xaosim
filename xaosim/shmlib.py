@@ -410,7 +410,7 @@ class shm:
         ''' --------------------------------------------------------------
         SCExAO specific: returns the exposure time (from keyword)
         -------------------------------------------------------------- '''
-        ii0 = 4 # index of exposure time in keywords
+        ii0 = 3 # index of exposure time in keywords
         self.expt = self.kwds[ii0]['value']
         return self.expt
 
