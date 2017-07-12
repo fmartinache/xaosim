@@ -9,8 +9,8 @@ Read and write access to shared memory (SHM) structures used by SCExAO
 Improved version of the original SHM structure used by SCExAO and friends.
 ---------------------------------------------------------------------------
 
-Named semaphores seems to be something from the python API and may require 
-the use of an external package.
+Named semaphores seems to be something missing from the python API and may 
+require the use of an external package.
 
 A possibility:
 http://semanchuk.com/philip/posix_ipc/
@@ -18,9 +18,6 @@ http://semanchuk.com/philip/posix_ipc/
 More info on semaphores:
 https://www.mkssoftware.com/docs/man3/sem_open.3.asp
 https://docs.python.org/2/library/threading.html#semaphore-objects
-
----------------------------------------------------------------------------
-Notes: keywords are not implemented yet
 --------------------------------------------------------------------------- '''
 
 import os, sys, mmap, struct
@@ -46,7 +43,7 @@ mtkeys = ['imname', 'naxis',  'size',    'nel',   'atype',
 # ------------------------------------------------------
 #    string used to decode the binary shm structure
 # ------------------------------------------------------
-hdr_fmt = '80s B 3I Q B d d q q B B B H5x Q Q Q B H5x'
+hdr_fmt = '80s B 3I Q B d d q q B B B H5x Q Q Q B H'
 
 
 ''' 
@@ -106,12 +103,18 @@ class shm:
                        'cnt0'  : 0,   'cnt1'  : 0, 'cnt2': 0,
                        'write' : 0,   'nbkw'  : 0}
 
+        # --------------------------------------------------------------------
+        #          dictionary describing the content of a keyword
+        # --------------------------------------------------------------------
+        self.kwd = {'name': '', 'type': 'N', 'value': 0, 'comment': ''}
+
         # ---------------
         if fname is None:
             print("No SHM file name provided")
             return(None)
 
         # ---------------
+        self.fname = fname
         if ((not os.path.exists(fname)) or (data is not None)):
             print("%s will be created or overwritten" % (fname,))
             self.create(fname, data)
@@ -126,7 +129,8 @@ class shm:
             self.read_meta_data(verbose=verbose)
             self.select_dtype()
             self.get_data()
-
+            self.read_keywords()
+            
     def create(self, fname, data):
         ''' --------------------------------------------------------------
         Create a shared memory data structure
@@ -195,7 +199,6 @@ class shm:
         #self.write_keywords()
         return(0)
 
-    # =========================================================================
     def rename_img(self, newname):
         ''' --------------------------------------------------------------
         Gives the user a chance to rename the image.
@@ -208,7 +211,6 @@ class shm:
         self.mtdata['imname'] = newname.ljust(80, ' ')
         self.buf[0:80]        = struct.pack('80s', self.mtdata['imname'])
 
-    # =========================================================================
     def close(self,):
         ''' --------------------------------------------------------------
         Clean close of a SHM data structure link
@@ -246,12 +248,60 @@ class shm:
         if verbose:
             self.print_meta_data()
 
-    def read_keywords(self, verbose=True):
+    def read_keywords(self):
         ''' --------------------------------------------------------------
         Place-holder. The name should be sufficiently explicit.
         -------------------------------------------------------------- '''
+        nbkw = self.mtdata['nbkw']     # how many keywords
+        self.kwds = []                 # prepare an empty list 
+        for ii in range(nbkw):         # fill with empty dictionaries
+            self.kwds.append(self.kwd)
+            
+        for ii in range(nbkw):         # sequential fill of keywords
+            self.read_keyword(ii)
+            
         return(0)
 
+    def read_keyword(self, ii):
+        ''' --------------------------------------------------------------
+        Read the content of keyword of given index.
+
+        Parameters:
+        ----------
+        - ii: index of the keyword to read
+        -------------------------------------------------------------- '''
+        kwsz = 113 # size of a keyword SHM data structure
+        k0   = self.im_offset + self.img_len + ii * kwsz
+
+        kname, ktype = struct.unpack('16s s', self.buf[k0:k0+17]) # read from SHM
+
+        # ------------------------------------------
+        # depending on type, select parsing strategy
+        # ------------------------------------------
+        kwfmt = '16s 80s'
+        
+        if ktype == 'L':
+            kwfmt = 'q 8x 80s'
+        elif ktype == 'D':
+            kwfmt = 'd 8x 80s'
+        elif ktype == 'S':
+            kwfmt = '16s 80s'
+        elif ktype == 'N':
+            kwfmt = '16s 80s'
+        
+        kval, kcomm = struct.unpack(kwfmt, self.buf[k0+17:k0+kwsz])
+
+        if kwfmt == '16s 80s':
+            kval = str(kval).strip('\x00')
+
+        # ------------------------------------------
+        #    fill in the dictionary of keywords
+        # ------------------------------------------
+        self.kwds[ii]['name']    = str(kname).strip('\x00')
+        self.kwds[ii]['type']    = ktype
+        self.kwds[ii]['value']   = kval
+        self.kwds[ii]['comment'] = str(kcomm).strip('\x00')
+    
     def print_meta_data(self):
         ''' --------------------------------------------------------------
         Basic printout of the content of the mtdata dictionary.
@@ -358,12 +408,11 @@ class shm:
 
     def get_expt(self,):
         ''' --------------------------------------------------------------
-        Crude access to exposure time.
+        SCExAO specific: returns the exposure time (from keyword)
         -------------------------------------------------------------- '''
-        x0 = 164363
-        self.expt, = struct.unpack('d', self.buf[x0+61:x0+69])
+        ii0 = 4 # index of exposure time in keywords
+        self.expt = self.kwds[ii0]['value']
         return self.expt
-
 
 # =================================================================
 # =================================================================
