@@ -362,7 +362,9 @@ class shm:
         data = np.fromstring(self.buf[i0:i1],dtype=self.npdtype) # read img
 
         if reform:
-            data = np.reshape(data, self.mtdata['size'][:2])
+            rsz = self.mtdata['size'][:self.mtdata['naxis']]
+            print rsz
+            data = np.reshape(data, rsz)
         return(data)
 
     def set_data(self, data, check_dt=False):
@@ -393,6 +395,7 @@ class shm:
                 print("Warning: writing wrong data-type to shared memory")
                 return
         self.increment_counter()
+
         return
 
     def save_as_fits(self, fitsname):
