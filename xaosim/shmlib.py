@@ -23,6 +23,7 @@ https://docs.python.org/2/library/threading.html#semaphore-objects
 import os, sys, mmap, struct
 import numpy as np
 import pyfits as pf
+import time
 
 # ------------------------------------------------------
 #          list of available data types
@@ -354,16 +355,24 @@ class shm:
 
         Parameters:
         ----------
-        - check: boolean, if True, waits for an updated image
+        - check: integer (last index) if not False, waits image update
         - reform: boolean, if True, reshapes the array in a 2-3D format
         -------------------------------------------------------------- '''
-        i0 = self.im_offset                                      # image offset
-        i1 = i0 + self.img_len                                   # image end
+        i0 = self.im_offset                                  # image offset
+        i1 = i0 + self.img_len                               # image end
+
+        if check is not False:
+            while self.get_counter() <= check:
+                #sys.stdout.write('\rcounter = %d' % (c0,))
+                #sys.stdout.flush()
+                time.sleep(0.001)
+
+            #sys.stdout.write('---\n')
+
         data = np.fromstring(self.buf[i0:i1],dtype=self.npdtype) # read img
 
         if reform:
             rsz = self.mtdata['size'][:self.mtdata['naxis']]
-            print rsz
             data = np.reshape(data, rsz)
         return(data)
 

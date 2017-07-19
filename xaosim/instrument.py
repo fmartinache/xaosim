@@ -527,7 +527,7 @@ class cam(object):
         frm  *= self.signal / frm.sum()
 
         if self.phot_noise: # need to be recast to fit original format
-            frm = np.random.poisson(lam=frm, size=None).astype(self.shm_cam.ddtype)
+            frm = np.random.poisson(lam=frm, size=None).astype(self.shm_cam.npdtype)
 
         self.shm_cam.set_data(frm) # push the image to shared memory
 

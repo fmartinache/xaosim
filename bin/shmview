@@ -82,12 +82,13 @@ else:
 #                       global variables
 # ------------------------------------------------------------------
 mycmap = cm.gray
-if cam.naxis == 1:
-    (ysize, xsize) = (cam.size[:cam.naxis], 1)
-elif cam.naxis == 2:
-    (ysize, xsize) = cam.size[:cam.naxis]
-elif cam.naxis == 3:
-    (ysize, xsize) = cam.size[1:cam.naxis]
+naxis = cam.mtdata['naxis']
+if naxis == 1:
+    (ysize, xsize) = (cam.mtdata['size'][:naxis], 1)
+elif naxis == 2:
+    (ysize, xsize) = cam.mtdata['size'][:naxis]
+elif naxis == 3:
+    (ysize, xsize) = cam.mtdata['size'][1:naxis]
 
 # -----------------------
 #   set up the window
@@ -112,9 +113,9 @@ def get_img_data(check=False):
     Reads from the already-opened shared memory
     data structure.
     ---------------------------------------- '''
-    if cam.naxis <= 2:
+    if cam.mtdata['naxis'] <= 2:
         res = cam.get_data(check, True).astype(float)
-    elif cam.naxis == 3:
+    elif cam.mtdata['naxis'] == 3:
         res = cam.get_data(check, True).sum(0).astype(float)
     return(res)
 
