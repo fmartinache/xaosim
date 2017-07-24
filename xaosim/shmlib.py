@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-''' ---------------------------------------------------------------------------
+'''---------------------------------------------------------------------------
 Read and write access to shared memory (SHM) structures used by SCExAO
 
 - Author : Frantz Martinache
@@ -18,12 +18,25 @@ http://semanchuk.com/philip/posix_ipc/
 More info on semaphores:
 https://www.mkssoftware.com/docs/man3/sem_open.3.asp
 https://docs.python.org/2/library/threading.html#semaphore-objects
---------------------------------------------------------------------------- '''
+
+---------------------------------------------------------------------------
+Note on data alignment (refer to section 7.3.2.1 of python documentation)
+
+By default, C types are represented in the machine’s native format and byte
+order, and properly aligned by skipping pad bytes if necessary (according to
+the rules used by the C compiler).
+
+To request no alignment, while using native byte-order, the first character 
+of the format string must be "="! This is used for keywords.
+---------------------------------------------------------------------------
+
+'''
 
 import os, sys, mmap, struct
 import numpy as np
 import pyfits as pf
 import time
+#import pdb
 
 # ------------------------------------------------------
 #          list of available data types
@@ -77,7 +90,7 @@ Table taken from Python 2 documentation, section 7.3.2.2.
 '''
 
 class shm:
-    def __init__(self, fname=None, data=None, verbose=False):
+    def __init__(self, fname=None, data=None, verbose=False, nbkw=0):
         ''' --------------------------------------------------------------
         Constructor for a SHM (shared memory) object.
 
@@ -92,7 +105,7 @@ class shm:
         -------------------------------------------------------------- '''
         self.hdr_fmt   = hdr_fmt  # in case the user is interested
         self.c0_offset = 144      # fast-offset for counter #0
-
+        self.kwsz      = 113      # size of a keyword SHM data structure
         # --------------------------------------------------------------------
         #                dictionary containing the metadata
         # --------------------------------------------------------------------
@@ -107,7 +120,7 @@ class shm:
         # --------------------------------------------------------------------
         #          dictionary describing the content of a keyword
         # --------------------------------------------------------------------
-        self.kwd = {'name': '', 'type': 'N', 'value': 0, 'comment': ''}
+        self.kwd = {'name': '', 'type': 'N', 'value': '', 'comment': ''}
 
         # ---------------
         if fname is None:
@@ -118,7 +131,7 @@ class shm:
         self.fname = fname
         if ((not os.path.exists(fname)) or (data is not None)):
             print("%s will be created or overwritten" % (fname,))
-            self.create(fname, data)
+            self.create(fname, data, nbkw)
 
         # ---------------
         else:
@@ -128,11 +141,12 @@ class shm:
             self.buf_len = self.stats.st_size
             self.buf     = mmap.mmap(self.fd, self.buf_len, mmap.MAP_SHARED)
             self.read_meta_data(verbose=verbose)
-            self.select_dtype()
-            self.get_data()
-            self.read_keywords()
+            self.select_dtype()        # identify main data-type
+            self.get_data()            # read the main data
+            self.create_keyword_list() # create empty list of keywords
+            self.read_keywords()       # populate the keywords with data
             
-    def create(self, fname, data):
+    def create(self, fname, data, nbkw=0):
         ''' --------------------------------------------------------------
         Create a shared memory data structure
 
@@ -160,7 +174,8 @@ class shm:
         self.mtdata['nel']    = data.size
         self.mtdata['atype']  = self.select_atype()
         self.mtdata['shared'] = 1
-
+        self.mtdata['nbkw']   = nbkw
+        
         if data.ndim == 2:
             self.mtdata['size'] = self.mtdata['size'] + (0,)
 
@@ -181,11 +196,11 @@ class shm:
         self.im_offset = len(minibuf)
 
         # ---------------------------------------------------------
-        #          allocate the file and mmap it
+        #             allocate the file and mmap it
         # ---------------------------------------------------------
-        extra = 0
-        fsz = self.im_offset + self.img_len + extra
-        npg = fsz / mmap.PAGESIZE + 1
+        kwspace = self.kwsz * nbkw                    # kword space
+        fsz = self.im_offset + self.img_len + kwspace # file size
+        npg = fsz / mmap.PAGESIZE + 1                 # nb pages
 
         self.fd = os.open(fname, os.O_CREAT | os.O_TRUNC | os.O_RDWR)
         os.write(self.fd, '\x00' * npg * mmap.PAGESIZE)
@@ -197,7 +212,8 @@ class shm:
         # ---------------------------------------------------------
         self.buf[:self.im_offset] = minibuf # the metadata
         self.set_data(data)
-        #self.write_keywords()
+        self.create_keyword_list()
+        self.write_keywords()
         return(0)
 
     def rename_img(self, newname):
@@ -249,19 +265,28 @@ class shm:
         if verbose:
             self.print_meta_data()
 
-    def read_keywords(self):
+    def create_keyword_list(self):
         ''' --------------------------------------------------------------
         Place-holder. The name should be sufficiently explicit.
         -------------------------------------------------------------- '''
         nbkw = self.mtdata['nbkw']     # how many keywords
         self.kwds = []                 # prepare an empty list 
         for ii in range(nbkw):         # fill with empty dictionaries
-            self.kwds.append(self.kwd)
+            self.kwds.append(self.kwd.copy())
             
-        for ii in range(nbkw):         # sequential fill of keywords
+    def read_keywords(self):
+        ''' --------------------------------------------------------------
+        Read all keywords from SHM file
+        -------------------------------------------------------------- '''        
+        for ii in range(self.mtdata['nbkw']):
             self.read_keyword(ii)
-            
-        return(0)
+
+    def write_keywords(self):
+        ''' --------------------------------------------------------------
+        Writes all keyword data to SHM file
+        -------------------------------------------------------------- '''
+        for ii in range(self.mtdata['nbkw']):
+            self.write_keyword(ii)
 
     def read_keyword(self, ii):
         ''' --------------------------------------------------------------
@@ -271,23 +296,26 @@ class shm:
         ----------
         - ii: index of the keyword to read
         -------------------------------------------------------------- '''
-        kwsz = 113 # size of a keyword SHM data structure
-        k0   = self.im_offset + self.img_len + ii * kwsz
+        kwsz = self.kwsz              # keyword SHM data structure size
+        k0   = self.im_offset + self.img_len + ii * kwsz # kword offset
 
-        kname, ktype = struct.unpack('16s s', self.buf[k0:k0+17]) # read from SHM
+        # ------------------------------------------
+        #             read from SHM
+        # ------------------------------------------
+        kname, ktype = struct.unpack('16s s', self.buf[k0:k0+17]) 
 
         # ------------------------------------------
         # depending on type, select parsing strategy
         # ------------------------------------------
         kwfmt = '16s 80s'
         
-        if ktype == 'L':
+        if ktype == 'L':   # keyword value is int64
             kwfmt = 'q 8x 80s'
-        elif ktype == 'D':
+        elif ktype == 'D': # keyword value is double
             kwfmt = 'd 8x 80s'
-        elif ktype == 'S':
+        elif ktype == 'S': # keyword value is string
             kwfmt = '16s 80s'
-        elif ktype == 'N':
+        elif ktype == 'N': # keyword is unused
             kwfmt = '16s 80s'
         
         kval, kcomm = struct.unpack(kwfmt, self.buf[k0+17:k0+kwsz])
@@ -302,7 +330,91 @@ class shm:
         self.kwds[ii]['type']    = ktype
         self.kwds[ii]['value']   = kval
         self.kwds[ii]['comment'] = str(kcomm).strip('\x00')
-    
+
+    def update_keyword(self, ii, name, value, comment):
+        ''' --------------------------------------------------------------
+        Update keyword data in dictionary and writes it to SHM file
+
+        Parameters:
+        ----------
+        - ii      : index of the keyword to write (integer)
+        - name    : the new keyword name 
+        -------------------------------------------------------------- '''
+
+        if (ii >= self.mtdata['nbkw']):
+            print("Keyword index %d is not allocated and cannot be written")
+            return
+
+        # ------------------------------------------
+        #    update relevant keyword dictionary
+        # ------------------------------------------
+        try:
+            self.kwds[ii]['name'] = str(name).ljust(16, ' ')
+        except:
+            print('Keyword name not compatible (< 16 char)')
+
+        if isinstance(value, (long, int)):
+            self.kwds[ii]['type'] = 'L'
+            self.kwds[ii]['value'] = long(value)
+            
+        elif isinstance(value, float):
+            self.kwds[ii]['type'] = 'D'
+            self.kwds[ii]['value'] = np.double(value)
+            
+        elif isinstance(value, str):
+            self.kwds[ii]['type'] = 'S'
+            self.kwds[ii]['value'] = str(value)
+        else:
+            self.kwds[ii]['type'] = 'N'
+            self.kwds[ii]['value'] = str(value)
+
+        try:
+            self.kwds[ii]['comment'] = str(comment).ljust(80, ' ')
+        except:
+            print('Keyword comment not compatible (< 80 char)')
+
+        # ------------------------------------------
+        #          write keyword to SHM
+        # ------------------------------------------
+        self.write_keyword(ii)
+        
+    def write_keyword(self, ii):
+        ''' --------------------------------------------------------------
+        Write keyword data to shared memory.
+
+        Parameters:
+        ----------
+        - ii      : index of the keyword to write (integer)
+        -------------------------------------------------------------- '''
+
+        if (ii >= self.mtdata['nbkw']):
+            print("Keyword index %d is not allocated and cannot be written")
+            return
+
+        kwsz = self.kwsz
+        k0   = self.im_offset + self.img_len + ii * kwsz # kword offset
+        
+        # ------------------------------------------
+        #    read the keyword dictionary
+        # ------------------------------------------
+        kname = self.kwds[ii]['name']
+        ktype = self.kwds[ii]['type']
+        kval  = self.kwds[ii]['value']
+        kcomm = self.kwds[ii]['comment']
+
+        if ktype == 'L':
+            kwfmt = '=16s s q 8x 80s'
+        elif ktype == 'D':
+            kwfmt = '=16s s d 8x 80s'
+        elif ktype == 'S':
+            kwfmt = '=16s s 16s 80s'
+        elif ktype == 'N':
+            kwfmt = '=16s s 16s 80s'
+
+        print kwfmt
+        print (kname, ktype, kval, kcomm) 
+        self.buf[k0:k0+kwsz] = struct.pack(kwfmt, kname, ktype, kval, kcomm) 
+
     def print_meta_data(self):
         ''' --------------------------------------------------------------
         Basic printout of the content of the mtdata dictionary.
