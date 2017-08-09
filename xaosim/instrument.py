@@ -57,7 +57,7 @@ class instrument(object):
                              pscale = 36.56, wl = 0.8e-6, 
                              shmf = '/tmp/SHcam.im.shm')
 
-            self.atmo = None#phscreen(self.name, arr_size, self.cam.ld0, 500.0)
+            self.atmo = phscreen(self.name, arr_size, 10, 500.0)
         else:
             print("""No template for '%s':
             check your spelling or... 
@@ -322,6 +322,14 @@ class phscreen(object):
         self.kolm2   = np.tile(self.kolm, (2,2))
         self.kolm2   = self.kolm2[:self.sz+self.pdiam,:self.sz+self.pdiam]
 
+        if self.keepgoing is False:
+            # case that must be adressed:
+            # amplitude changed when atmo is frozen!
+            subk = self.kolm2[self.offx:self.offx+self.pdiam,
+                              self.offy:self.offy+self.pdiam]
+            
+            self.rms_i = subk.std()
+            self.shm_phs.set_data(subk)
         
     # ==============================================================
     def __loop__(self, delay = 0.1):
@@ -750,7 +758,7 @@ class SHcam(cam):
         # -------------------------------------------------------------------
         temp0 = Image.fromarray(frm)
         temp1 = temp0.resize((self.ys, self.xs), resample=1)
-        frm = np.array(temp1).astype(self.shm_cam.ddtype)
+        frm = np.array(temp1).astype(self.shm_cam.npdtype)
 
 
         if frm.sum() > 0:
@@ -758,7 +766,7 @@ class SHcam(cam):
 
         if self.phot_noise: # need to be recast to fit original format
             frm = np.random.poisson(lam=frm,
-                                    size=None).astype(self.shm_cam.ddtype)
+                                    size=None).astype(self.shm_cam.npdtype)
 
         self.shm_cam.set_data(frm) # push the image to shared memory
 

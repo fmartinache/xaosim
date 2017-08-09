@@ -78,8 +78,12 @@ if 'scexao' in socket.gethostname():
     dmc  = shm('/tmp/dm00disp%02d.im.shm' % (chn,)) # DM channel (perturbation)
 else: # simulation rig
     dmc  = shm('/tmp/dmdisp%d.im.shm' % (chn,)) # DM channel (perturbation)
-dms = dmc.size[0]                               # DM size
 
+try:
+    dms = dmc.size[0]                               # DM size
+except:
+    dms = dmc.mtdata['size'][0]
+    
 # -----------------------
 #   set up the window
 # -----------------------
@@ -107,6 +111,7 @@ def select_ZER_basis(dms):
     nzer = i1-i0
 
     if dms < 50: # ---- for the ALPAO DM ----
+        bank_dm_modes = np.zeros((nzer, dms, dms)).astype('float32')
         for i in xrange(nzer):
             bank_dm_modes[i] = mkzer1(i+i0, dms, dms/2, False)
 
