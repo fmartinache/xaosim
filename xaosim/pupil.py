@@ -144,9 +144,9 @@ def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0,
         d = ((yy <  0.0) * (np.abs(np.arctan((yy+y0)/(xx+1e-8))) > beta))
         
     # pupil outer and inner edge
-    e = (mydist < pix_rad)
+    e = (mydist <= np.round(pix_rad))
     if odiam > 0.0:
-        e *= (mydist > ro * pix_rad)
+        e *= (mydist > np.round(ro * pix_rad))
 
     if split:
         res = np.array([a*e, b*e, c*e, d*e])

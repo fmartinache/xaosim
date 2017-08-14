@@ -22,7 +22,7 @@ https://docs.python.org/2/library/threading.html#semaphore-objects
 ---------------------------------------------------------------------------
 Note on data alignment (refer to section 7.3.2.1 of python documentation)
 
-By default, C types are represented in the machine’s native format and byte
+By default, C types are represented in the machine's native format and byte
 order, and properly aligned by skipping pad bytes if necessary (according to
 the rules used by the C compiler).
 

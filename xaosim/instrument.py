@@ -8,9 +8,16 @@ import pdb
 
 dtor  = np.pi/180.0 # to convert degrees to radians
 
-shift = np.fft.fftshift # short-hand for FFTs
-fft   = np.fft.fft2
-ifft  = np.fft.ifft2
+try:
+    import pyfftw
+    shift = pyfftw.interfaces.numpy_fft.fftshift
+    fft   = pyfftw.interfaces.numpy_fft.fft2
+    ifft  = pyfftw.interfaces.numpy_fft.ifft2
+    print("using pyfftw library!")
+except:
+    shift = np.fft.fftshift # short-hand for FFTs
+    fft   = np.fft.fft2
+    ifft  = np.fft.ifft2
 
 # ===========================================================
 # ===========================================================
@@ -505,8 +512,7 @@ class cam(object):
         mu2phase = 4.0 * np.pi / self.wl / 1e6 # convert microns to phase
         nm2phase = 2.0 * np.pi / self.wl / 1e9 # convert microns to phase
 
-        phs = np.zeros((self.sz, self.sz))      # full phase map
-        #wf = (1+0j)*np.ones((self.sz, self.sz)) # full wavefront array
+        phs = np.zeros((self.sz, self.sz), dtype=np.float128)       # full phase map
 
         if dmmap is not None: # a DM map was provided
             dms = dmmap.shape[0]
@@ -537,7 +543,7 @@ class cam(object):
         if self.phot_noise: # need to be recast to fit original format
             frm = np.random.poisson(lam=frm, size=None).astype(self.shm_cam.npdtype)
 
-        self.shm_cam.set_data(frm) # push the image to shared memory
+        self.shm_cam.set_data(frm.astype(self.shm_cam.npdtype)) # push the image to shared memory
 
 
     # ==================================================
