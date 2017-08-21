@@ -34,9 +34,12 @@ of the format string must be "="! This is used for keywords.
 
 import os, sys, mmap, struct
 import numpy as np
-import pyfits as pf
 import time
-#import pdb
+
+try:
+    import astropy.io.fits as pf
+except:
+    import pyfits as pf
 
 # ------------------------------------------------------
 #          list of available data types
