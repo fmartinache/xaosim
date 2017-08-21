@@ -693,7 +693,7 @@ class SHcam(cam):
         self.shm_cam = shm(self.shmf, data = self.frm0, verbose=False)
 
         self.cdiam = self.sz / np.float(self.mls) # oversized u-lens (in pixels)
-        self.rcdiam = np.ceil(self.cdiam)
+        self.rcdiam = np.round(self.cdiam).astype(int)
 
         #np.round(2*self.prad0/self.mls) # u-lens size (in pixels)
         
@@ -754,12 +754,12 @@ class SHcam(cam):
             li, lj = i / mls, i % mls # i,j indices for the u-lens
             pi0, pj0 = np.round(li * cdiam), np.round(lj * cdiam)
 
-            wfs[xl0:xl0+cdiam, xl0:xl0+cdiam] = wf[pi0:pi0+cdiam, pj0:pj0+cdiam]
+            wfs[xl0:xl0+rcdiam, xl0:xl0+rcdiam] = wf[pi0:pi0+rcdiam, pj0:pj0+rcdiam]
 
             # compute the image by the u-lens
             iml = shift(np.abs(fft(shift(wfs)))**2)
             
-            frm[pi0:pi0+cdiam, pj0:pj0+cdiam] = iml[xl0:xl0+cdiam, xl0:xl0+cdiam]
+            frm[pi0:pi0+rcdiam, pj0:pj0+rcdiam] = iml[xl0:xl0+rcdiam, xl0:xl0+rcdiam]
 
         # -------------------------------------------------------------------
         temp0 = Image.fromarray(frm)
