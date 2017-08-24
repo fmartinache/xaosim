@@ -1,253 +1,238 @@
 #!/usr/bin/env python
 
-import pygame, sys
-from pygame.locals import *
+
+''' --------------------------------------------------------------------------
+20170730: 
+--------
+
+Shared memory viewer.
+
+-------------------------------------------------------------------------- '''
+
+from xaosim.QtMain import QtMain, QApplication
+from PyQt4 import QtCore, QtGui, uic
+from PyQt4.QtCore import QThread
+from PyQt4.QtGui import QLabel, QImage
+
+import threading
+
+import pyqtgraph as pg
+import sys
 import numpy as np
+from numpy.linalg import solve
+from xaosim.shmlib import shm
 import matplotlib.cm as cm
 
-try:
-    import pyfits as pf
-except:
-    import astropy.io.fits as pf
+import os
+import shutil
 
-from PIL import Image
-import time
+import Image
 
-from   xaosim.shmlib import shm
+# =====================================================================
+home = os.getenv('HOME')
+conf_dir = home+'/.config/xaosim/'
 
-cindex = 0 # color map index
-cmaps = []
-cmaps.append(cm.gray)
+# =====================================================================
+# =====================================================================
+myqt = 0 # to have myqt as a global variable
 
+def main():
+    global myqt
+    myqt = QtMain()
+    gui = MyWindow()
+    myqt.mainloop()
+    myqt.gui_quit()
+    sys.exit()
 
-try:
-    cmaps.append(cm.viridis)
-    cmaps.append(cm.inferno)
-    cmaps.append(cm.magma)
-    cmaps.append(cm.plasma)
-    cmaps.append(cm.jet)
-except:    
-    cmaps.append(cm.jet)
+# =====================================================================
+#                               Tools 
+# =====================================================================
+def arr2im(arr, vmin=False, vmax=False, pwr=1.0, cmap=None, gamma=1.0):
+    ''' ------------------------------------------
+    convert numpy array into image for display
 
-ncmaps = cmaps.__len__()
+    limits dynamic range, power coefficient and
+    applies colormap
+    ------------------------------------------ '''
+    arr2 = arr.astype('float')
+    if vmin is False:
+        mmin = arr2.min()
+    else:
+        mmin = vmin
 
-hmsg = """
+    if vmax is False:
+        mmax = arr2.max()
+    else:
+        mmax = vmax
 
-########################################
+    arr2 -= mmin
+    if mmax != mmin:
+        arr2 /= (mmax-mmin)
 
-Shared memory structure live viewer
------------------------------------
+    arr2 = arr2**pwr
 
-command:
--------
+    #cm.jet.set_gamma(0.1)
+    if cmap == None:
+        mycmap = cm.jet
+    else:
+        mycmap = cmap
 
->> shmview /tmp/xxx.shm [zoom_factor]
-
-note: default zoom factor is 2
-
-ex:
---
-
->> shmview /tmp/ircam2.im.shm 3
->> shmview /tmp/dmdispcombconf.conf.shm 5
-
-########################################
-
-display controls:
-----------------
-l     : linear/non-linear display
-m     : color/gray color-map
-ESC   : quit shmview
-
-########################################
-
-"""
-
-
-args = sys.argv[1:]
-if args == []: 
-    print(hmsg)
-    #cam = shm("/tmp/ircam%d.im.shm" % (2,))
-    cam = shm("/tmp/test")
-else:
-    print("test %s" % (args[0],))
-    cam = shm(args[0])
-
-if args.__len__() == 2:
-    zoom = int(args[1])
-else:
-    zoom = 2
-
-# ------------------------------------------------------------------
-#                       global variables
-# ------------------------------------------------------------------
-mycmap = cm.gray
-naxis = cam.mtdata['naxis']
-if naxis == 1:
-    (ysize, xsize) = (cam.mtdata['size'][:naxis], 1)
-elif naxis == 2:
-    (ysize, xsize) = cam.mtdata['size'][:naxis]
-elif naxis == 3:
-    (ysize, xsize) = cam.mtdata['size'][1:naxis]
-
-# -----------------------
-#   set up the window
-# -----------------------
-pygame.init()
-
-FPS = 10                        # frames per second setting
-fpsClock = pygame.time.Clock()  # start the pygame clock!
-XW, YW = 650, 712
-XW, YW = zoom * xsize, zoom * ysize
-
-screen = pygame.display.set_mode((XW, YW), 0, 32)
-pygame.display.set_caption('%s' % (args[0],))
-
-# ------------------------------------------------------------------
-#             short hands for shared memory data access
-# ------------------------------------------------------------------
-def get_img_data(check=False):
-    ''' ----------------------------------------
-    Return the current image data content,
-    formatted as a 2D numpy array.
-    Reads from the already-opened shared memory
-    data structure.
-    ---------------------------------------- '''
-    if cam.mtdata['naxis'] <= 2:
-        res = cam.get_data(check, True).astype(float)
-    elif cam.mtdata['naxis'] == 3:
-        res = cam.get_data(check, True).sum(0).astype(float)
+    res = mycmap(arr2)
+    res[:,:,3] = gamma
     return(res)
 
-# ------------------------------------------------------------------
-#  another short hand to convert numpy array into image for display
-# ------------------------------------------------------------------
-def arr2im(arr, vmin=0., vmax=10000.0, pwr=1.0):
-    
-    arr2 = arr.astype('float')**pwr
-    mmin,mmax = arr2.min(), arr2.max()
-    #mmax = np.percentile(arr2, 99)
-    arr2 -= mmin
-    arr2 /= (mmax-mmin)
 
-    if zoom != 1:
-        img = Image.fromarray(arr2)
-        rimg = img.resize((zoom*ysize, zoom*xsize))
-        rarr = np.asarray(rimg)
-        test = mycmap(rarr)
-    else:
-        test = mycmap(arr2)
-    return((255*test[:,:,:3]).astype('int'))
+# =====================================================================
+#                          Main GUI object
+# =====================================================================
+args = sys.argv[1:]
 
-# ------------------------------------------------------------------
-#              !!! now we are in business !!!!
-# ------------------------------------------------------------------
+class MyWindow(QtGui.QMainWindow):
+    ''' ------------------------------------------------------
+    This is the meat of the program: the class that drives
+    the GUI.
+    ------------------------------------------------------ '''
+    def __init__(self):
+        global index
+        self.mySHM = None # handle for mmapped SHM file
+        self.vmin  = False
+        self.vmax  = False
+        self.pwr   = 1.0
+        self.mycmap = cm.gray
+        
+        super(MyWindow, self).__init__()
+        if not os.path.exists(conf_dir + 'shmimview.ui'):
+            uic.loadUi('shmimview.ui', self)
+        else:
+            uic.loadUi(conf_dir + 'shmimview.ui', self)
 
-background = pygame.Surface(screen.get_size())
-background = background.convert()
-background.fill((0,0,0))
+        # ==============================================
+        # prepare the display
+        # ==============================================
+        self.gView_shm.hideAxis('left')
+        self.gView_shm.hideAxis('bottom')
 
-# ----------------------------
-#          labels
-# ----------------------------
-font3 = pygame.font.SysFont("droidsansmono", 16)
+        self.imv_data = pg.ImageItem()
+        self.overlay  = pg.GraphItem()
+        
+        self.gView_shm.addItem(self.imv_data)
+        
+        # ==============================================
+        #             GUI widget actions 
+        # ==============================================
+        self.dspB_disp_min.valueChanged[float].connect(self.update_vmin)
+        self.dspB_disp_max.valueChanged[float].connect(self.update_vmax)
 
-xws = xsize*zoom
-yws = ysize*zoom
+        self.chB_min.stateChanged[int].connect(self.update_vmin)
+        self.chB_min.stateChanged[int].connect(self.update_vmax)
 
-imin, imax = 0, 0
-surf_live = pygame.surface.Surface((zoom*xsize, zoom*ysize))
-#screen.blit(surf_live, (5,5))
+        self.chB_nonlinear.stateChanged[int].connect(self.update_nonlinear)
 
-rect1 = surf_live.get_rect()
-rect1.center = (xws/2, yws/2)
+        self.cmB_cbar.addItems(['gray', 'hot', 'jet', 'viridis', 'magma', 'banana'])
+        self.cmB_cbar.activated[str].connect(self.update_cbar)
+        self.cmB_cbar.setCurrentIndex(0)
 
-temp      = get_img_data()
+        # ==============================================
+        #             top-menu actions
+        # ==============================================
+        self.actionQuit.triggered.connect(sys.exit)
+        self.actionQuit.setShortcut('Ctrl+Q')
 
+        self.actionOpen.triggered.connect(self.load_shm)
 
-plot_cross = True  # flag for display of the crosses
-subt_bias  = False # flag for bias subtraction
-cont_acq   = False 
-lin_scale  = True  # flag for linear range
-clr_scale  = False # flag for the display color scale
-bias = np.zeros_like(temp)
+        if args is not []:
+            try:
+                self.mySHM = shm(str(args[0]))
+                self.live_counter = -1
+            except:
+                self.mySHM = None
+            
+        # ==============================================
+        self.show()
+        
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.refresh_all)
+        self.timer.start(100)
 
-counter = 0
-myccmap = cmaps[1]
+    # =========================================================
+    def closeEvent(self, event):
+        sys.exit()
 
-# =======================================================
-# =======================================================
-while True: # the main game loop
-    clicked = False
+    # =========================================================
+    def update_cbar(self):
+        cbar = str(self.cmB_cbar.currentText()).lower()
+        try:
+            exec 'self.mycmap = cm.%s' % (cbar,)
+        except:
+            print("colormap %s is not available" % (cbar,))
+            self.mycmap = cm.jet
 
-    pwr0 = 1.0
-    if not lin_scale:
-        pwr0 = 0.3
+    # =========================================================
+    def update_vmin(self):
+        self.vmin = False
+        if self.chB_min.isChecked():
+            self.vmin = self.dspB_disp_min.value()
+        
+    # =========================================================
+    def update_vmax(self):
+        self.vmax = False
+        if self.chB_max.isChecked():
+            self.vmax = self.dspB_disp_max.value()
 
-    mycmap = cm.gray
-    if clr_scale:
-        mycmap = myccmap
+    # =========================================================
+    def update_nonlinear(self):
+        self.pwr = 1.0
+        if self.chB_nonlinear.isChecked():
+            self.pwr = 0.3
 
-    mycmap = cmaps[cindex]
+    # =========================================================
+    def refresh_img(self):
+        self.imv_data.setImage(arr2im(self.data_img.T,
+                                      vmin=self.vmin, vmax=self.vmax,
+                                      pwr=self.pwr,
+                                      cmap=self.mycmap), border=2)
 
-    # read image
-    test = cam.get_counter()
-    if test != counter:
-        counter = test
-        temp    = get_img_data()
+    # =========================================================
+    def refresh_stats(self):
+        self.toto = "OK"
+        pt_levels = [0, 5, 10, 20, 50, 75, 90, 95, 99, 100]
+        pt_values = np.percentile(self.data_img, pt_levels)
+        
+        msg = "<pre>\n"
+        for i, ptile in enumerate(pt_levels):
+            msg += "p-tile %3d = %8.2f\n" % (ptile, pt_values[i])
+        msg += "</pre>"
+        self.lbl_stats.setText(msg)
 
-        imin, imax = temp.min(), temp.max()
-        temp -= imin
-        myim      = arr2im(temp.transpose(), pwr=pwr0)
+    # =========================================================
+    def load_shm(self):
+        fname = QtGui.QFileDialog.getOpenFileName(self, 'Load SHM file', 
+                                                  '/tmp/*.im.shm')
+        if self.mySHM is not None:
+            self.mySHM.close()
+            
+        self.mySHM = shm(str(fname))
+        self.live_counter = -1
 
-        imax = np.percentile(temp, 99.95)
-        msg = "(min,max) = (%5d,%5d)" % (imin, imax)
+    # =========================================================
+    def refresh_all(self):
+        ''' ----------------------------------------------------------
+        Refresh the display
 
-    # display information
-    pygame.surfarray.blit_array(surf_live, myim)
-    screen.blit(surf_live, rect1)
+        Independently from the "under the hood" engine, the display
+        gets refreshed every now and then, to give visual feedback
+        to the user.
+        ---------------------------------------------------------- '''
+        self.test = 0
+        if self.mySHM is not None:
+            if self.live_counter < self.mySHM.get_counter():
+                self.data_img = self.mySHM.get_data(False, True)
+                self.live_counter = self.mySHM.get_counter()
 
-
-    # =====================================
-    for event in pygame.event.get():
-
-        if event.type == QUIT:
-            pygame.quit()
-
-            # close shared memory access
-            # --------------------------
-            cam.close()          # global disp map
-            print("shmview has ended normally.")
-            sys.exit()
-        elif event.type == KEYDOWN:
-
-            if event.key == K_ESCAPE:
-                pygame.quit()
-                # close shared memory access
-                # --------------------------
-                cam.close()          # global disp map
-                print("shmview has ended normally.")
-                sys.exit()
-
-            if event.key == K_m:
-                cindex += 1
-                cindex = cindex % ncmaps
-                clr_scale = True - clr_scale
-                counter = 0
-
-            if event.key == K_l:
-                lin_scale = True - lin_scale
-                counter = 0
-
-            if event.key == K_h:
-                print(hmsg)
-
-            if event.key == K_s:
-                toto = temp
-                pf.writeto("shmview_img.fits", toto, clobber=True)
-    pygame.display.flip()
-
-    fpsClock.tick(FPS)
-
-pygame.quit()
-sys.exit()
+            self.refresh_img()
+            self.refresh_stats()
+            
+# ==========================================================
+# ==========================================================
+if __name__ == "__main__":
+    main()

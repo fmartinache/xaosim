@@ -1,6 +1,28 @@
 xaosim: a series of tools used to simulate an XAO-like system
 ===============================================================
 
+The specificity of XAOSIM is that it was built around shared memory data
+structures defined in the context of the SCExAO instrument by Olivier Guyon and
+Frantz Martinache. This approach makes it possible to design real-time AO
+control software using XAOSIM's simulation environment data and deploy it on an
+actual instrument (assuming that it uses the same exchange format) in a
+transparent manner.
+
+In addition to the simulation library package, a shared memory data viewer GUI
+(shmview) is now part of the distribution.
+
+Recommandation for installation:
+-------------------------------
+
+>> python setup.py install --user
+
+This will create a .config/xaosim/ configuration directory in the user home folder.
+
+It is also recommended to add ~/.local/bin/ to the path:
+
+>> export PATH=$HOME/.local/bin/:$PATH
+
+
 Example use:
 -----------
 
@@ -42,8 +64,10 @@ It relies on a series of auxilliary tools:
 - shmlib: a library that uses shared memory data structures like the ones
   designed to control the SCExAO instrument at the Subaru Telescope.
 
-- shmview: a python program using the shared memory library to visualize the 2D
-  data structures.
+- shmview: a python GUI using the shared memory library to visualize the 2D
+  data structures. The current version of shmview is no longer based on the
+  pygame framework but on Qt4. This program benefits from an additional module
+  designed by Eric Jeschke (eric@naoj.org) to make it multi-thread safe.
   
 Release Notes:
 -------------
