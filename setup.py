@@ -16,7 +16,7 @@ setup(name='xaosim',
       ],
       packages=['xaosim'],
       install_requires=[
-          'numpy', 'scipy', 'matplotlib', 'pygame'
+          'numpy', 'scipy', 'matplotlib'
       ],
       scripts=['bin/zernike_dm', 'bin/shmview'],
       data_files = [(os.getenv('HOME')+'/.config/xaosim/', ['config/shmimview.ui'])],
