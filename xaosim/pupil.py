@@ -105,7 +105,7 @@ def uniform_disk((ys, xs), radius):
 # ==================================================================
 def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0, 
                      beta=45.0, thick=0.45, offset=0.0,
-                     spiders=True, split=False, between_pix=False):
+                     spiders=True, split=False, between_pix=True):
     ''' ---------------------------------------------------------
     tool function called by other routines to generate specific
     pupil geometries. Although the result is scaled by pix_rad in 
@@ -250,6 +250,29 @@ def HST((xs,ys), radius, spiders=True):
     return(four_spider_mask((ys, xs), radius, pdiam, odiam, 
                             beta=beta, thick=thick, offset=offset, 
                             spiders=spiders))
+
+# ==================================================================
+def VLT((n,m), radius, spiders=True):
+    ''' ---------------------------------------------------------
+    returns an array that draws the pupil of the VLT
+    at the center of an array of size (n,m) with radius "radius".
+
+    Parameters describing the pupil were deduced from a pupil mask
+    description of the APLC coronograph of SPHERE, by Guerri et al, 
+    2011. 
+
+    http://cdsads.u-strasbg.fr/abs/2011ExA....30...59G
+    --------------------------------------------------------- '''
+
+    # VLT pupil description
+    # ---------------------
+    pdiam, odiam = 8.00, 1.12  # tel. and obst. diameters (meters)
+    thick  = 0.04              # adopted spider thickness (meters)
+    offset = 1.11              # spider intersection offset (meters)
+    beta   = 50.5              # spider angle beta
+
+    return(four_spider_mask((m, n), radius, pdiam, odiam, 
+                            beta, thick, offset, spiders))
 
 # ==================================================================
 def subaru((n,m), radius, spiders=True):
@@ -487,7 +510,7 @@ def lwe_mode_bank_2D(sz, odiam=8.0, beta=51.75, offset=1.28):
     return(bank)
 
 # ======================================================================
-def kolmo(rnd1, rnd2, fc, ld0, correc=1e0, rms=0.1):
+def kolmo(rnd, fc, ld0, correc=1e0, rms=0.1):
     '''Does a Kolmogorov wavefront simulation with partial AO correction.
     
     Wavefront simulation of total size "size", following Kolmogorov statistics
@@ -497,35 +520,118 @@ def kolmo(rnd1, rnd2, fc, ld0, correc=1e0, rms=0.1):
     Parameters:
     ----------
 
-    - rnd1, rnd2 : arrays of normally distributed numbers
-    - fc         : cutoff frequency (in lambda/D)
-    - ld0        : lambda/D (in pixels)
-    - correc     : correction of wavefront amplitude (factor 10, 100, ...)
-    - std        : rms
+    - rnd     : array of uniformly distributed numbers [0,1)
+    - fc      : cutoff frequency (in lambda/D)
+    - ld0     : lambda/D (in pixels)
+    - correc  : correction of wavefront amplitude (factor 10, 100, ...)
+    - rms     : rms over the entire computed wavefront
 
     Note1: after applying the pupil mask, the Strehl is going to vary a bit
-    Note2: one provides rnd1 and rn2 from outside so that the same experiment
-           can be repeated with the same random numbers.
+    Note2: one provides rnd from outside the routine so that the same 
+    experiment can be repeated with the same random numbers.
     '''
 
-    ys,xs = rnd1.shape
-    xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
-    myarr = shift(np.hypot(yy,xx))
-    temp = np.zeros(rnd1.shape, dtype=complex)
-    temp.real = rnd1
-    temp.imag = rnd2
+    ys,xs = rnd.shape
+    xx,yy = np.meshgrid(np.arange(xs) - xs/2, np.arange(ys) - ys/2)
+    rr    = shift(np.hypot(yy,xx))
 
-    in_fc = (myarr < (fc*ld0))
-    out_fc = True - in_fc
+    in_fc = (rr < (fc*ld0))
 
-    myarr[0,0] = 1.0 # trick to avoid div by 0!
-    myarr = myarr**(-11./6.)
-    myarr[in_fc] /= correc
+    rr[0,0] = 1.0 # trick to avoid div by 0!
+    modul = rr**(-11./6.)
+    modul[in_fc] /= correc
     
-    test = (ifft(myarr * temp)).real
+    test = (ifft(modul * np.exp(1j * 2*np.pi * (rnd - 0.5)))).real
     
     test -= np.mean(test)
     test *= rms/np.std(test)
 
     return test
 
+# ==================================================================
+def atmo_screen(isz, ll, r0, L0):
+    '''The Kolmogorov - Von Karman phase screen generation algorithm.
+
+    Adapted from the work of Carbillet & Riccardi (2010).
+    http://cdsads.u-strasbg.fr/abs/2010ApOpt..49G..47C
+
+    Parameters:
+    ----------
+
+    - isz: the size of the array to be computed (in pixels)
+    - ll:  the physical extent of the phase screen (in meters)
+    - r0: the Fried parameter, measured at a given wavelength (in meters)
+    - L0: the outer scale parameter (in meters)
+
+    Returns: two independent phase screens, available in the real and 
+    imaginary part of the returned array.
+
+    -----------------------------------------------------------------
+
+    '''
+    phs = 2*np.pi * (np.random.rand(isz, isz) - 0.5)
+
+    xx, yy = np.meshgrid(np.arange(isz)-isz/2, np.arange(isz)-isz/2)
+    rr = np.hypot(yy, xx)
+    rr = shift(rr)
+    rr[0,0] = 1.0
+
+    modul = (rr**2 + (ll/L0)**2)**(-11/12.)
+    screen = ifft(modul * np.exp(1j*phs)) * isz**2
+    screen *= np.sqrt(2*0.0228)*(ll/r0)**(5/6.)
+
+    screen -= screen.mean()
+    return(screen)
+
+
+# ==================================================================
+def noll_variance(iz, D, r0):
+    '''Computes the Noll residual variance (in rad**2) for a partly
+    corrected wavefront.
+
+    Adapted from the work of Marcel Carbillet for CAOS Library 5.4
+
+    Itself based on (Noll R.J., JOSA, 66, 3 (1976))
+
+    Parameters:
+    ----------
+
+    - iz : Zernike mode until which the wavefront is ideally corrected
+    - D  : aperture diameter (in meters)
+    - r0 : Fried parameter (in meters)
+    -------------------------------------------------------------------
+    '''
+    noll_var = [1.0299 , 0.582  , 0.134  , 0.111  , 0.0880 , 
+                0.0648 , 0.0587 , 0.0525 , 0.0463 , 0.0401 , 
+                0.0377 , 0.0352 , 0.0328 , 0.0304 , 0.0279 ,
+                0.0267 , 0.0255 , 0.0243 , 0.0232 , 0.022  , 
+                0.0208]
+
+    try:
+        noll = noll_var[iz]
+    except:
+        noll = 0.2944*(iz+1.)**(-np.sqrt(3)/2.)
+
+    return(noll*(D/r0)**(5./3))
+
+# ==================================================================
+def noll_rms(iz, D, r0, wl=None):
+    '''Computes the RMS for a partly corrected wavefront.
+
+    Using the Noll residual variance function described above.
+    
+    Optional parameter:
+    ------------------
+
+    - wl: the wavelength (unit TBD by user)
+    
+    If wl is provided, the result (otherwise in radians) is converted
+    into OPD, expressed in matching units
+    -------------------------------------------------------------------
+    '''
+    vari = noll_variance(iz, D, r0)
+    if wl is None:
+        res = np.sqrt(vari)
+    else:
+        res = np.sqrt(vari) * wl / (2*np.pi)
+    return(res)

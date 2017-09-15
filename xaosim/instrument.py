@@ -52,19 +52,21 @@ class instrument(object):
         if self.name == "SCExAO":
             print("Creating %s" % (self.name,))
             arr_size = 512
-            self.DM  = DM(self.name, 50, 8)
+            dms = 50
+            self.DM  = DM(self.name, dms, 8)
             self.cam = cam(self.name, arr_size, (320,256), 10.0, 1.6e-6)
-            self.atmo = phscreen(self.name, arr_size, self.cam.ld0, 500.0)
+            self.atmo = phscreen(self.name, arr_size, self.cam.ld0, dms, 1500.0)
 
         elif self.name == "CIAO":
             arr_size = 128
-            self.DM  = DM(self.name, 11, 8)
+            dms      = 11
+            self.DM  = DM(self.name, dms, 8)
 
             self.cam = SHcam(self.name, sz = 128, dsz = 128, mls = 10,
                              pscale = 36.56, wl = 0.8e-6, 
                              shmf = '/tmp/SHcam.im.shm')
 
-            self.atmo = phscreen(self.name, arr_size, 10, 500.0)
+            self.atmo = phscreen(self.name, arr_size, 10, dms, 500.0)
         else:
             print("""No template for '%s':
             check your spelling or... 
@@ -216,8 +218,7 @@ class phscreen(object):
     ----------------
     - sz      : size (sz x sz) of the phase screen         (in pixels)
     - pdiam   : diameter of the aperture within this array (in pixels)
-    - r1      : 1st normally distributed random array        (sz x sz)
-    - r2      : 2nd normally distributed random array        (sz x sz)
+    - rndarr  : uniformly distributed random array           (sz x sz)
     - kolm    : the original phase screen                    (sz x sz)
     - kolm2   : the oversized phase screen    ((sz + pdiam) x (sz + pdiam))
     - qstatic : an optional quasi static aberration    (pdiam x pdiam)
@@ -233,7 +234,7 @@ class phscreen(object):
 
     '''
     # ==================================================
-    def __init__(self, name, sz = 512, ld0 = 10, rms = 100.0,
+    def __init__(self, name, sz = 512, ld0 = 10, dms = 50, rms = 100.0,
                  shmf='/tmp/phscreen.im.shm'):
 
         ''' Kolmogorov type atmosphere + qstatic error
@@ -244,6 +245,7 @@ class phscreen(object):
         - name : a string describing the instrument
         - sz   : the size of the Fourier array
         - ld0  : lambda/D for the camera (in pixels)
+        - dms  : the size of the DM (to simulate AO correction)
         - rms  : the RMS wavefront error in nm
         - shmf : file name to point to shared memory
         -----------------------------------------------------
@@ -252,10 +254,13 @@ class phscreen(object):
         self.sz      = sz
         self.rms     = np.float(rms)
         self.rms_i   = np.float(rms)
-        self.r1      = np.random.randn(sz,sz)
-        self.r2      = np.random.randn(sz,sz)
-        self.kolm    = pupil.kolmo(self.r1, self.r2, 5.0, ld0, 
-                                   1.0, rms)
+        self.rndarr  = np.random.rand(sz,sz)
+        self.correc  = 1.0 # at first, no AO correction
+        self.fc      = dms / 2.0
+        self.ld0     = ld0
+        self.kolm    = pupil.kolmo(self.rndarr, self.fc, self.ld0, 
+                                   self.correc, self.rms)
+
         self.pdiam = np.round(sz / ld0).astype(int)
         self.qstatic = np.zeros((self.pdiam, self.pdiam))
         self.shm_phs = shm(shmf, data = self.qstatic, verbose=False)
@@ -314,17 +319,22 @@ class phscreen(object):
 
 
     # ==============================================================
-    def update_rms(self, rms):
-        ''' ------------------------------------------
-        Update the rms of the phase screen on the fly
-        without recalculating one phase screen
+    def update_screen(self, correc=None, rms=None, fc=None):
+        ''' ------------------------------------------------
+        Generic update of the properties of the phase-screen
+        
+        ------------------------------------------------ '''
+        if rms is not None:
+            self.rms = rms
+            
+        if correc is not None:
+            self.correc = correc
 
-        Parameter:
-        ---------
-        - rms: the rms of the phase screen (in nm)
-        -----------------------------------------  '''
-        self.kolm *= np.float(rms) / self.rms
-        self.rms = rms
+        if fc is not None:
+            self.fc = fc
+            
+        self.kolm    = pupil.kolmo(self.rndarr, self.fc, self.ld0, 
+                                   self.correc, self.rms)
 
         self.kolm2   = np.tile(self.kolm, (2,2))
         self.kolm2   = self.kolm2[:self.sz+self.pdiam,:self.sz+self.pdiam]
@@ -337,7 +347,21 @@ class phscreen(object):
             
             self.rms_i = subk.std()
             self.shm_phs.set_data(subk)
-        
+
+    # ==============================================================
+    def update_rms(self, rms):
+        ''' ------------------------------------------
+        Update the rms of the phase screen on the fly
+
+        Parameter:
+        ---------
+        - rms: the rms of the phase screen (in nm)
+
+        Special case of the update_screen() call, kept
+        for legacy reasons. TB discarded in the near future.
+        -----------------------------------------  '''
+        self.update_screen(rms=rms)
+                
     # ==============================================================
     def __loop__(self, delay = 0.1):
 
@@ -448,9 +472,11 @@ class cam(object):
             self.stop()
 
         self.shm_cam = shm(self.shmf, data = self.frm0, verbose=False)
-
+        self.prebin = 1
+        
         if  "SCExAO" in self.name:
             self.pdiam = 7.92          # Subaru Telescope diameter (in meters)
+            self.prebin = 5
         elif "CIAO" in self.name:
             self.pdiam = 1.0           # C2PU Telescope diameter (in meters)
         elif "HST" in self.name:
@@ -462,13 +488,14 @@ class cam(object):
         self.ld0    *= 3.6e6 / dtor / self.pscale # lambda_0/D   (in pixels)
         self.prad0   = self.sz/self.ld0/2         # pupil radius (in pixels)
 
-        self.pupil   = self.get_pupil(self.name, self.sz, self.prad0)
+        self.pupil   = self.get_pupil(self.name, self.sz, self.prad0,
+                                      rebin=self.prebin)
 
         if wasgoing:
             self.start()
         
     # ==================================================
-    def get_pupil(self, name="", size=256, radius=50):
+    def get_pupil(self, name="", size=256, radius=50, rebin=1):
         ''' Choose the pupil function call according to name
         -------------------------------------------------------------------
         Parameters:
@@ -477,13 +504,19 @@ class cam(object):
         - size : the square size of the array
         - radius: the radius of the pupil for this array
         ------------------------------------------------------------------- '''
+        rsz = size * rebin
+        rrad = radius * rebin
         if name == "SCExAO":
-            exec 'res = pupil.subaru((%d,%d), %d, spiders=True)' % (size,size, radius)
+            res = pupil.subaru((rsz, rsz), rrad, spiders=True)
+
         elif name == "NICMOS":
-            exec 'res = pupil.HST((%d,%d), %d, spiders=True)' % (size,size, radius)
+            res = pupil.HST((rsz, rsz), rrad, spiders=True)
+
         else:
             print("Default: unobstructed circular aperture")
-            exec 'res = pupil.uniform_disk((%d, %d), %d)' % (size, size, radius)
+            res = pupil.uniform_disk((rsz, rsz), rrad)
+
+        res = res.reshape(size, rebin, size, rebin).mean(3).mean(1)
         return(res)
 
     # ==================================================
