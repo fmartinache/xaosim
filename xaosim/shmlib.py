@@ -470,7 +470,7 @@ class shm:
         self.mtdata['cnt0'] = cntr                   # update object mtdata
         return(cntr)
 
-    def get_data(self, check=False, reform=True):
+    def get_data(self, check=False, reform=True, sleepT=0.001, timeout=5):
         ''' --------------------------------------------------------------
         Reads and returns the data part of the SHM file
 
@@ -478,17 +478,19 @@ class shm:
         ----------
         - check: integer (last index) if not False, waits image update
         - reform: boolean, if True, reshapes the array in a 2-3D format
+        - sleepT: time increment (in seconds) when waiting for new data
+        - timeout: timeout in seconds
         -------------------------------------------------------------- '''
         i0 = self.im_offset                                  # image offset
         i1 = i0 + self.img_len                               # image end
 
+        time0 = time.time()
         if check is not False:
-            while self.get_counter() <= check:
-                #sys.stdout.write('\rcounter = %d' % (c0,))
-                #sys.stdout.flush()
-                time.sleep(0.001)
-
-            #sys.stdout.write('---\n')
+            timen = time.time()
+            
+            while ((self.get_counter() <= check) and (timen-time0 < timeout)):
+                time.sleep(sleepT)
+                timen = time.time()
 
         data = np.fromstring(self.buf[i0:i1],dtype=self.npdtype) # read img
 
