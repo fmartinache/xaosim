@@ -30,6 +30,12 @@ To request no alignment, while using native byte-order, the first character
 of the format string must be "="! This is used for keywords.
 ---------------------------------------------------------------------------
 
+Note on the order of axes for the data:
+The convention for the shared memory structure follows that of the fits file:
+for a 3D array, the axes are in the x,y,z order.
+
+Internally in this library, the axes are reversed: z,y,x.
+---------------------------------------------------------------------------
 '''
 
 import os, sys, mmap, struct
@@ -173,7 +179,7 @@ class shm:
         self.npdtype          = data.dtype
         self.mtdata['imname'] = fname.ljust(80, ' ')
         self.mtdata['naxis']  = data.ndim
-        self.mtdata['size']   = data.shape
+        self.mtdata['size']   = data.shape[:data.ndim][::-1]
         self.mtdata['nel']    = data.size
         self.mtdata['atype']  = self.select_atype()
         self.mtdata['shared'] = 1
@@ -487,7 +493,7 @@ class shm:
         data = np.fromstring(self.buf[i0:i1],dtype=self.npdtype) # read img
 
         if reform:
-            rsz = self.mtdata['size'][:self.mtdata['naxis']]
+            rsz = self.mtdata['size'][:self.mtdata['naxis']][::-1]
             data = np.reshape(data, rsz)
         return(data)
 

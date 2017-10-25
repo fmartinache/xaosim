@@ -40,30 +40,74 @@ def spectral_sampling(wl1, wl2, nl, wavenum=False):
         return (1./kk)
 
 # ==================================================================
-def hex_pup_coords(srad, nr):
-    ''' ----------------------------------------------------------
-    produces a list of x,y coordinates for a hex grid made of
-    nr concentric rings, with a step srad
-    ---------------------------------------------------------- '''
-    rmax   = np.round(nr * srad)
-    xs, ys = np.array(()), np.array(())
+def hex_grid_coords(nr=1, radius=10):
+    ''' -------------------------------------------------------------------
+    returns a 2D array of real x,y coordinates for a regular hexagonal grid
+    that fits within a hexagon.
+
+    Parameters:
+    ----------
+    - nr     : the number of "rings" (integer)
+    - radius : the radius of a ring (float)
+    ------------------------------------------------------------------- '''
+    xs = np.array(())
+    ys = np.array(())
 
     for i in range(1-nr, nr, 1):
-        for j in xrange(1-nr, nr, 1):
-            x = srad * (i + 0.5 * j)
-            y = j * np.sqrt(3)/2.*srad
-            if (abs(i+j) < nr):
+        for j in range(1-nr, nr, 1):
+            x = radius * (i + 0.5 * j)
+            y = j * np.sqrt(3)/2 * radius
+            if abs(i+j) < nr:
                 xs = np.append(xs, x)
                 ys = np.append(ys, y)
+    return(np.array((xs, ys)))
 
-    xx, yy = xs.copy(), ys.copy()
-    xs, ys = np.array(()), np.array(())
+# ==================================================================
+def meta_hex_grid_coords(xy, nr=1, radius=10):
+    '''------------------------------------------------------------------- 
+    returns a single 2D array of real x,y coordinates for a regular 
+    hexagonal grid of nr rings around each point (x,y) coordinate provided
+    in the input xy array.
 
-    for i in range(xx.size): 
-        if (0.5*srad <= np.sqrt(xx[i]**2 + yy[i]**2) < rmax*0.97*np.sqrt(3)/2.):
-            xs = np.append(xs, xx[i])
-            ys = np.append(ys, yy[i])
-    return(xs, ys)
+    Intended use: build a hex grid of hex grids, for instance to help with
+    the discretization of a hexagonal segmented aperture.
+
+    Parameters;
+    ----------
+    - xy    : a 2D array of (x,y) coordinates (float)
+    - nr    : the number of hex "rings" to be created around each point
+    - radius: the radius of a ring (float)
+    ------------------------------------------------------------------- '''
+
+    xs = np.array(())
+    ys = np.array(())
+
+    npt = xy.shape[1] # number of points in the input grid
+
+    temp = hex_grid_coords(nr, radius)
+    for k in range(npt):
+        xs = np.append(xs, temp[0,:] + xy[0,k])
+        ys = np.append(ys, temp[1,:] + xy[1,k])
+
+    return(np.array((xs, ys)))
+
+# ==================================================================
+def hex_mirror_model(nra, nrs, step, fill=False):
+    ''' -------------------------------------------------------------------
+    - step: the minimum distance between two segments centers (float)
+    ------------------------------------------------------------------- '''
+
+    # the (coarse) *array* geometry
+    # =============================
+    seg1 = hex_grid_coords(nra, step)
+    keep = (np.abs(seg1[0,:]) > 1e-3) + (np.abs(seg1[1,:]) > 1e-3)
+    seg1 = seg1[:,keep]
+
+    radius = step / (np.sqrt(3) * nrs)
+    if fill is True:
+        nrs += 1
+    res = meta_hex_grid_coords(np.flipud(seg1), nrs, radius)
+    return(res)
 
 # ==================================================================
 def F_test_figure((ys, xs), ww):
@@ -436,43 +480,6 @@ def golay9(sz, prad, hrad):
         pup[mydist < hrad] = 1.0
         pup = np.roll(np.roll(pup,  xs[i], 0),  ys[i], 1)
 
-    return(pup)
-
-
-# ======================================================================
-def hex_grid(sz, prad, srad, gap=False):
-    '''Returns a segmented pupil image, and a list of coordinates
-    for each segment.
-    '''
-    nr   = 50 # number of rings within the pupil
-
-    xs = np.array(())
-    ys = np.array(())
-
-    for i in range(1-nr, nr, 1):
-        for j in xrange(1-nr, nr, 1):
-            x = srad * (i + 0.5 * j)
-            y = j * np.sqrt(3)/2.*srad
-            if (abs(i+j) < nr):
-                xs = np.append(xs, x)
-                ys = np.append(ys, y)
-    
-    print ("%d" % (xs.size))
-    xx, yy = xs.copy(), ys.copy()        # temporary copies
-    xs, ys = np.array(()), np.array(())  # start from scratch again
-    
-    for i in xrange(xx.size):
-        thisrad = np.sqrt(xx[i]**2 + yy[i]**2)
-        #print(thisrad)
-        if (thisrad < prad):
-            xs = np.append(xs, xx[i]+sz/2)
-            ys = np.append(ys, yy[i]+sz/2)
-
-    pup = np.zeros((sz,sz))
-    for i in xrange(xs.size):
-        pup[xs[i], ys[i]] = 1.0
-
-    print ("%d" % (xs.size))
     return(pup)
 
 # ======================================================================
