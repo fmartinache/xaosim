@@ -114,6 +114,20 @@ class instrument(object):
             self.atmo.start()
 
     # ==================================================
+    def snap(self):
+        ''' image snap produced without starting servers.
+
+        Mode useful for simulations not requiring the semi real-time
+        features of xaosim.
+        ------------------------------------------------------------------- '''
+
+        # DM update
+        self.DM.update(verbose=True)
+        # image update
+        self.cam.make_image(dmmap=self.DM.dmd)
+        return(self.cam.get_image())
+    
+    # ==================================================
     def start(self, delay=0.1):
         ''' A function that starts all the components *servers*
         
@@ -889,6 +903,22 @@ class DM(object):
             print("The *DM* server was not running")
 
     # ==================================================
+    def update(self, verbose=False):
+        ''' ----------------------------------------
+        DM state update.
+
+        Reads all existing channels and combines
+        them to update the actual DM shape.
+        ---------------------------------------- '''
+        combi = np.zeros_like(self.disp0.get_data())
+        for i in xrange(self.nch):
+            exec "combi += self.disp%d.get_data()" % (i,)
+        self.dmd = combi
+        self.disp.set_data(combi)
+        if verbose:
+            print("DM shape updated!")
+        
+    # ==================================================
     def __loop__(self, delay=0.1):
         ''' ----------------------------------------
         Thread (infinite loop) that updates the DM
@@ -906,11 +936,6 @@ class DM(object):
                     updt = True
             if updt:
                 updt = False
-                combi = np.zeros_like(self.disp0.get_data())
-                for i in xrange(self.nch):
-                    exec "combi += self.disp%d.get_data()" % (i,)
-                self.dmd = combi
-                self.disp.set_data(combi)
-                #print("DM shape updated!")
+                self.update()
             time.sleep(delay)
 
