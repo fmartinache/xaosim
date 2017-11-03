@@ -121,10 +121,17 @@ class instrument(object):
         features of xaosim.
         ------------------------------------------------------------------- '''
 
-        # DM update
-        self.DM.update(verbose=True)
-        # image update
-        self.cam.make_image(dmmap=self.DM.dmd)
+        cmd_args = ""
+        
+        if self.DM is not None:
+            self.DM.update(verbose=True)
+            cmd_args += "dmmap = self.DM.dmd,"
+
+        if self.atmo is not None:
+            cmd_args += 'phscreen = self.atmo.shm_phs.get_data()'
+
+        exec "self.cam.make_image(%s)" % (cmd_args,)
+
         return(self.cam.get_image())
     
     # ==================================================
