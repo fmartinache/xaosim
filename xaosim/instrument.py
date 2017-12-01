@@ -67,6 +67,14 @@ class instrument(object):
                              shmf = '/tmp/SHcam.im.shm')
 
             self.atmo = phscreen(self.name, arr_size, 10, dms, 500.0)
+            
+        elif self.name == "NIRC2":
+            arr_size = 256
+            dms = 50
+            self.DM = DM(self.name, dms, 4)
+            self.cam = cam(self.name, arr_size, (128,128), 10.0, 3.776e-6)
+            self.atmo = phscreen(self.name, arr_size, self.cam.ld0, dms, 1500.0)
+            
         else:
             print("""No template for '%s':
             check your spelling or... 
@@ -502,6 +510,8 @@ class cam(object):
             self.pdiam = 1.0           # C2PU Telescope diameter (in meters)
         elif "HST" in self.name:
             self.pdiam = 2.4           # Hubble Space Telescope
+        elif "NIRC2" in self.name:
+            self.pdiam = 10.2          # Keck II Telescope "diameter"
         else:
             self.pdiam = 8.0           # default size: 8-meter telescope
 
@@ -532,7 +542,10 @@ class cam(object):
 
         elif name == "NICMOS":
             res = pupil.HST((rsz, rsz), rrad, spiders=True)
-
+            
+        elif name == "NIRC2":
+            th0 = -20.5*np.pi/180.0 # pupil angle
+            res = pupil.segmented_aperture(rsz, 3, int(rrad/3), rot=th0)
         else:
             print("Default: unobstructed circular aperture")
             res = pupil.uniform_disk((rsz, rsz), rrad)

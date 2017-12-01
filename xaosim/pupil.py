@@ -40,7 +40,7 @@ def spectral_sampling(wl1, wl2, nl, wavenum=False):
         return (1./kk)
 
 # ==================================================================
-def hex_grid_coords(nr=1, radius=10):
+def hex_grid_coords(nr=1, radius=10, rot=0.0):
     ''' -------------------------------------------------------------------
     returns a 2D array of real x,y coordinates for a regular hexagonal grid
     that fits within a hexagon.
@@ -49,9 +49,13 @@ def hex_grid_coords(nr=1, radius=10):
     ----------
     - nr     : the number of "rings" (integer)
     - radius : the radius of a ring (float)
+    - rot    : a rotation angle (in radians)
     ------------------------------------------------------------------- '''
     xs = np.array(())
     ys = np.array(())
+
+    RR = np.array([[np.cos(rot), -np.sin(rot)],
+                   [np.sin(rot),  np.cos(rot)]])
 
     for i in range(1-nr, nr, 1):
         for j in range(1-nr, nr, 1):
@@ -60,7 +64,7 @@ def hex_grid_coords(nr=1, radius=10):
             if abs(i+j) < nr:
                 xs = np.append(xs, x)
                 ys = np.append(ys, y)
-    return(np.array((xs, ys)))
+    return(RR.dot(np.array((xs, ys))))
 
 # ==================================================================
 def meta_hex_grid_coords(xy, nr=1, radius=10):
@@ -92,11 +96,17 @@ def meta_hex_grid_coords(xy, nr=1, radius=10):
     return(np.array((xs, ys)))
 
 # ==================================================================
-def hex_mirror_model(nra, nrs, step, fill=False):
+def hex_mirror_model(nra, nrs, step, fill=False, rot=0.0):
     ''' -------------------------------------------------------------------
+    - nra : the number of rings for the global aperture (rings)
+    - nrs : the number of rings per segment
     - step: the minimum distance between two segments centers (float)
+    - fill: adds points at gaps between segments and on the edges
     ------------------------------------------------------------------- '''
 
+    RR = np.array([[np.cos(rot), -np.sin(rot)],
+                   [np.sin(rot),  np.cos(rot)]])
+    
     # the (coarse) *array* geometry
     # =============================
     seg1 = hex_grid_coords(nra, step)
@@ -106,7 +116,7 @@ def hex_mirror_model(nra, nrs, step, fill=False):
     radius = step / (np.sqrt(3) * nrs)
     if fill is True:
         nrs += 1
-    res = meta_hex_grid_coords(np.flipud(seg1), nrs, radius)
+    res = RR.dot(meta_hex_grid_coords(np.flipud(seg1), nrs, radius))
     return(res)
 
 # ==================================================================
@@ -408,39 +418,24 @@ def subaru_asym((xs, ys), radius, spiders=True, PA=0.0, thick=0.15):
     return(pup * arm)
 
 # ======================================================================
-def segmented(sz, prad, srad, gap=False):
-    '''Returns a segmented pupil image, and a list of coordinates
-    for each segment.
-    '''
-    nr   = 50 # number of rings within the pupil
+def segmented_aperture(sz, nr, srad, rot=0.0):
+    ''' ----------------------------------------------------------------
+    Returns the square sz x sz image of a segmented aperture.
 
-    xs = np.array(())
-    ys = np.array(())
-
-    for i in range(1-nr, nr, 1):
-        for j in xrange(1-nr, nr, 1):
-            x = srad * (i + 0.5 * j)
-            y = j * np.sqrt(3)/2.*srad
-            if (abs(i+j) < nr):
-                xs = np.append(xs, x)
-                ys = np.append(ys, y)
-    
-    print ("%d" % (xs.size))
-    xx, yy = xs.copy(), ys.copy()        # temporary copies
-    xs, ys = np.array(()), np.array(())  # start from scratch again
-    
-    for i in xrange(xx.size):
-        thisrad = np.sqrt(xx[i]**2 + yy[i]**2)
-        #print(thisrad)
-        if (thisrad < prad):
-            xs = np.append(xs, xx[i]+sz/2)
-            ys = np.append(ys, yy[i]+sz/2)
-
+    Parameters:
+    ----------
+    - sz   : the size of the array
+    - nr   : the number of rings (annuli) making up the aperture
+    - srad : the radius of a segment (in pixels)
+    - rot  : a rotation angle (in radians)
+    ---------------------------------------------------------------- '''
+    xy = hex_mirror_model(nr+1, srad, srad, rot=rot).astype(np.int)+sz/2
     pup = np.zeros((sz,sz))
-    for i in xrange(xs.size):
-        pup[xs[i], ys[i]] = 1.0
-
-    print ("%d" % (xs.size))
+    for i in range(xy.shape[1]):
+        try:
+            pup[xy[0,i],xy[1,i]] = 1.0
+        except:
+            pass
     return(pup)
 
 # ======================================================================
