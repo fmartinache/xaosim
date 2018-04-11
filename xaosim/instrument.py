@@ -603,12 +603,14 @@ class cam(object):
         wf = np.exp(1j*phs)
         wf[self.pupil == False] = 0+0j # re-apply the pupil map
 
+        self.fc_pa = fft(shift(wf)) # focal plane complex amplitude
+        
         img = shift(np.abs(fft(shift(wf)))**2)
         frm = img[self.py0:self.py0+self.ys, self.px0:self.px0+self.xs]
         frm  *= self.signal / frm.sum()
 
         if self.phot_noise: # need to be recast to fit original format
-            frm = np.random.poisson(lam=frm, size=None).astype(self.shm_cam.npdtype)
+            frm = np.random.poisson(lam=frm.astype(np.float64), size=None)#.astype(self.shm_cam.npdtype)
 
         self.shm_cam.set_data(frm.astype(self.shm_cam.npdtype)) # push the image to shared memory
 

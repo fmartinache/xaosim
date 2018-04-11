@@ -146,11 +146,14 @@ def F_test_figure((ys, xs), ww):
     return(res)
 
 # ==================================================================
-def uniform_disk((ys, xs), radius):
+def uniform_disk((ys, xs), radius, between_pix=False):
     ''' ---------------------------------------------------------
     returns an (ys x xs) array with a uniform disk of radius "radius".
     ---------------------------------------------------------  '''
-    xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+    if between_pix is False:
+        xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+    else:
+        xx,yy  = np.meshgrid(np.arange(xs)-xs/2+0.5, np.arange(ys)-ys/2+0.5)
     mydist = np.hypot(yy,xx)
     res = np.zeros_like(mydist)
     res[mydist <= radius] = 1.0
@@ -342,7 +345,7 @@ def subaru((n,m), radius, spiders=True):
     # Subaru pupil description
     # ------------------------
     pdiam, odiam = 7.92, 2.3  # tel. and obst. diameters (meters)
-    thick  = 0.45             # adopted spider thickness (meters)
+    thick  = 0.25             # adopted spider thickness (meters)
     offset = 1.278            # spider intersection offset (meters)
     beta   = 51.75            # spider angle beta
 
