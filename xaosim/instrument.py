@@ -467,6 +467,7 @@ class cam(object):
         self.dm_shmf    = None             # associated shared memory file for DM
         self.atmo_shmf  = None             # idem for atmospheric phase screen
 
+        self.corono     = False            # if True, ideal coronagraph is in place
         self.self_update()
 
     # ==================================================
@@ -600,14 +601,18 @@ class cam(object):
         if phscreen is not None: # a phase screen was provided
             phs[x0:x1,x0:x1] += phscreen * nm2phase
 
-        wf = np.exp(1j*phs)
+        if self.corono:
+            wf = 0+1j*phs
+        else:
+            wf = np.exp(1j*phs)
         wf[self.pupil == False] = 0+0j # re-apply the pupil map
 
         self.fc_pa = fft(shift(wf)) # focal plane complex amplitude
         
         img = shift(np.abs(fft(shift(wf)))**2)
         frm = img[self.py0:self.py0+self.ys, self.px0:self.px0+self.xs]
-        frm  *= self.signal / frm.sum()
+        if frm.sum() > 0:
+            frm  *= self.signal / frm.sum()
 
         if self.phot_noise: # need to be recast to fit original format
             frm = np.random.poisson(lam=frm.astype(np.float64), size=None)#.astype(self.shm_cam.npdtype)
