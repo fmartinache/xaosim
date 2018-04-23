@@ -302,6 +302,14 @@ class phscreen(object):
         self.offx = 0 # x-offset on the "large" phase screen array
         self.offy = 0 # y-offset on the "large" phase screen array
 
+        self.ttc     = False         # Tip-tilt correction flag
+        
+        # auxilliary array (for tip-tilt correction)
+        self.xx, self.yy  = np.meshgrid(np.arange(self.pdiam)-self.pdiam/2,
+                                        np.arange(self.pdiam)-self.pdiam/2)
+        self.xxnorm2 = np.sum(self.xx**2)
+        self.yynorm2 = np.sum(self.yy**2)
+        
     # ==============================================================
     def start(self, delay=0.1):
         ''' ----------------------------------------
@@ -372,8 +380,13 @@ class phscreen(object):
             # case that must be adressed:
             # amplitude changed when atmo is frozen!
             subk = self.kolm2[self.offx:self.offx+self.pdiam,
-                              self.offy:self.offy+self.pdiam]
+                              self.offy:self.offy+self.pdiam].copy()
             
+            if self.ttc is True:            
+                ttx = np.sum(subk*self.xx) / self.xxnorm2
+                tty = np.sum(subk*self.yy) / self.yynorm2
+                subk -= ttx * self.xx + tty * self.yy
+
             self.rms_i = subk.std()
             self.shm_phs.set_data(subk)
 
@@ -392,7 +405,14 @@ class phscreen(object):
         self.update_screen(rms=rms)
                 
     # ==============================================================
-    def __loop__(self, delay = 0.1):
+    def __loop__(self, delay=0.1):
+        ''' ------------------------------------------
+        Main loop: frozen screen slid over the aperture
+
+        Options:
+        ---------
+        - delay: the time delay between refresh  (0.1 sec)
+        -----------------------------------------  '''
 
         while self.keepgoing:
             self.offx += 2
@@ -401,8 +421,13 @@ class phscreen(object):
             self.offy = self.offy % self.sz
 
             subk = self.kolm2[self.offx:self.offx+self.pdiam,
-                              self.offy:self.offy+self.pdiam]
-            
+                              self.offy:self.offy+self.pdiam].copy()
+
+            if self.ttc is True:
+                ttx = np.sum(subk*self.xx) / self.xxnorm2
+                tty = np.sum(subk*self.yy) / self.yynorm2
+                subk -= ttx * self.xx + tty * self.yy
+
             self.rms_i = subk.std()
             self.shm_phs.set_data(subk)
             time.sleep(delay)
@@ -449,7 +474,7 @@ class cam(object):
         self.ys      = ys
         
         if ((sz < xs) or (sz < ys)):
-            print("Array size %d should be greater than image dimensions (%d,%d)" % (sz, xs, ys))
+            print("Array size %d should be > image sizs (%d,%d)" % (sz, xs, ys))
             return(-1)
 
         self.pscale  = pscale              # plate scale in mas/pixel
@@ -467,7 +492,7 @@ class cam(object):
         self.dm_shmf    = None             # associated shared memory file for DM
         self.atmo_shmf  = None             # idem for atmospheric phase screen
 
-        self.corono     = False            # if True, ideal coronagraph is in place
+        self.corono     = False            # if True: perfect coronagraph
         self.self_update()
 
     # ==================================================
@@ -563,9 +588,7 @@ class cam(object):
 
     # ==================================================
     def make_image(self, phscreen=None, dmmap=None):
-        ''' For test purposes only?
-
-        Produce an image, given a certain number of phase screens
+        '''Produce an image, given a certain number of phase screens
         -------------------------------------------------------------------
         Parameters:
         ----------
@@ -580,7 +603,7 @@ class cam(object):
         mu2phase = 4.0 * np.pi / self.wl / 1e6 # convert microns to phase
         nm2phase = 2.0 * np.pi / self.wl / 1e9 # convert microns to phase
 
-        phs = np.zeros((self.sz, self.sz), dtype=np.float128)       # full phase map
+        phs = np.zeros((self.sz, self.sz), dtype=np.float128)  # full phase map
 
         if dmmap is not None: # a DM map was provided
             dms = dmmap.shape[0]
@@ -589,9 +612,6 @@ class cam(object):
         
             x0 = (self.sz-rwf)/2
             x1 = x0 + rwf
-
-            xx,yy  = np.meshgrid(np.arange(rwf)-rwf/2, np.arange(rwf)-rwf/2)
-            mydist = np.hypot(yy,xx)
 
             phs0 = Image.fromarray(mu2phase * dmmap)   # phase map
             phs1 = phs0.resize((rwf, rwf), resample=1) # resampled phase map
@@ -605,19 +625,21 @@ class cam(object):
             wf = 0+1j*phs
         else:
             wf = np.exp(1j*phs)
+
+        wf *= np.sqrt(self.signal / self.pupil.sum())
         wf[self.pupil == False] = 0+0j # re-apply the pupil map
 
-        self.fc_pa = fft(shift(wf)) # focal plane complex amplitude
-        
-        img = shift(np.abs(fft(shift(wf)))**2)
+        self.fc_pa = fft(shift(wf)) / self.sz # focal plane complex amplitude
+
+        img = shift(np.abs(self.fc_pa)**2)
+               
         frm = img[self.py0:self.py0+self.ys, self.px0:self.px0+self.xs]
-        if frm.sum() > 0:
-            frm  *= self.signal / frm.sum()
 
         if self.phot_noise: # need to be recast to fit original format
-            frm = np.random.poisson(lam=frm.astype(np.float64), size=None)#.astype(self.shm_cam.npdtype)
-
-        self.shm_cam.set_data(frm.astype(self.shm_cam.npdtype)) # push the image to shared memory
+            frm = np.random.poisson(lam=frm.astype(np.float64), size=None)
+            
+        # push the image to shared memory
+        self.shm_cam.set_data(frm.astype(self.shm_cam.npdtype))
 
 
     # ==================================================
