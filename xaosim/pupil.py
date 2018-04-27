@@ -161,7 +161,7 @@ def uniform_disk((ys, xs), radius, between_pix=False):
 
 # ==================================================================
 def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0, 
-                     beta=45.0, thick=0.45, offset=0.0,
+                     beta=45.0, thick=0.25, offset=0.0,
                      spiders=True, split=False, between_pix=True):
     ''' ---------------------------------------------------------
     tool function called by other routines to generate specific
@@ -185,7 +185,7 @@ def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0,
     ro      = odiam / pdiam
     xx,yy   = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
     if between_pix is True:
-        xx,yy   = np.meshgrid(np.arange(xs)-xs/2-0.5, np.arange(ys)-ys/2-0.5)
+        xx,yy   = np.meshgrid(np.arange(xs)-xs/2+0.5, np.arange(ys)-ys/2+0.5)
     mydist  = np.hypot(yy,xx)
 
     thick  *= pix_rad / pdiam
@@ -288,7 +288,7 @@ def lwe_mode_vector(split_xyq, iQuad, iMode):
     return(vector)
         
 # ======================================================================
-def HST((xs,ys), radius, spiders=True):
+def HST((xs,ys), radius, spiders=True, between_pix=True):
     ''' -------------------------------------------------------------
     Draws the Hubble Space Telescope pupil of given radius in a array
 
@@ -306,10 +306,10 @@ def HST((xs,ys), radius, spiders=True):
     offset = 0.0
     return(four_spider_mask((ys, xs), radius, pdiam, odiam, 
                             beta=beta, thick=thick, offset=offset, 
-                            spiders=spiders))
+                            spiders=spiders, between_pix=between_pix))
 
 # ==================================================================
-def VLT((n,m), radius, spiders=True):
+def VLT((n,m), radius, spiders=True, between_pix=True):
     ''' ---------------------------------------------------------
     returns an array that draws the pupil of the VLT
     at the center of an array of size (n,m) with radius "radius".
@@ -329,10 +329,11 @@ def VLT((n,m), radius, spiders=True):
     beta   = 50.5              # spider angle beta
 
     return(four_spider_mask((m, n), radius, pdiam, odiam, 
-                            beta, thick, offset, spiders))
+                            beta, thick, offset, spiders=spiders,
+                            between_pix=between_pix))
 
 # ==================================================================
-def subaru((n,m), radius, spiders=True):
+def subaru((n,m), radius, spiders=True, between_pix=True):
     ''' ---------------------------------------------------------
     returns an array that draws the pupil of the Subaru Telescope
     at the center of an array of size (n,m) with radius "radius".
@@ -349,8 +350,10 @@ def subaru((n,m), radius, spiders=True):
     offset = 1.278            # spider intersection offset (meters)
     beta   = 51.75            # spider angle beta
 
-    return(four_spider_mask((m, n), radius, pdiam, odiam, 
-                            beta, thick, offset, spiders))
+    return(four_spider_mask((m, n), radius, pdiam, odiam=odiam, 
+                            beta=beta, thick=thick, offset=offset,
+                            spiders=spiders,
+                            between_pix=between_pix))
 
 # ==================================================================
 def subaru_dbl_asym((xs, ys), radius, spiders=True, PA1=0.0, PA2=90.0,

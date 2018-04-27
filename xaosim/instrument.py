@@ -641,7 +641,6 @@ class cam(object):
         # push the image to shared memory
         self.shm_cam.set_data(frm.astype(self.shm_cam.npdtype))
 
-
     # ==================================================
     def start(self, delay=0.1, dm_shmf=None, atmo_shmf=None):
         ''' ----------------------------------------
