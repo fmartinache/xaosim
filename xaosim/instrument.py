@@ -54,7 +54,7 @@ class instrument(object):
             arr_size = 512
             dms = 50
             self.DM  = DM(self.name, dms, 8)
-            self.cam = cam(self.name, arr_size, (320,256), 10.0, 1.6e-6)
+            self.cam = cam(self.name, arr_size, (320,256), 16.7, 1.6e-6)
             self.atmo = phscreen(self.name, arr_size, self.cam.ld0, dms, 1500.0)
 
         elif self.name == "CIAO":
