@@ -66,7 +66,7 @@ class instrument(object):
                              pscale = 36.56, wl = 0.8e-6, 
                              shmf = '/tmp/SHcam.im.shm')
 
-            self.atmo = phscreen(self.name, arr_size, 10, dms, 500.0)
+            self.atmo = None#phscreen(self.name, arr_size, 10, dms, 500.0)
             
         elif self.name == "NIRC2":
             arr_size = 256
@@ -388,7 +388,7 @@ class phscreen(object):
                 subk -= ttx * self.xx + tty * self.yy
 
             self.rms_i = subk.std()
-            self.shm_phs.set_data(subk)
+            self.shm_phs.set_data(subk + self.qstatic)
 
     # ==============================================================
     def update_rms(self, rms):
@@ -429,7 +429,7 @@ class phscreen(object):
                 subk -= ttx * self.xx + tty * self.yy
 
             self.rms_i = subk.std()
-            self.shm_phs.set_data(subk)
+            self.shm_phs.set_data(subk + self.qstatic)
             time.sleep(delay)
 
 
@@ -733,7 +733,8 @@ class cam(object):
             if atm_map is not None:
                 test = atm_map.get_counter()
                 if test != atm_cntr:
-                    cmd_args += "phscreen = atm_map.get_data(),"
+                    myphscreen = atm_map.get_data()
+                    cmd_args += "phscreen = myphscreen,"
 
             exec "self.make_image(%s)" % (cmd_args,)
 
@@ -835,6 +836,7 @@ class SHcam(cam):
             phs[x0:x1,x0:x1] = phs1
 
         # -------------------------------------------------------------------
+        #pdb.set_trace()
         if phscreen is not None: # a phase screen was provided
             phs[x0:x1,x0:x1] += phscreen * nm2phase
 
@@ -842,12 +844,12 @@ class SHcam(cam):
         wf = np.exp(1j*phs)
         wf[self.pupil == False] = 0+0j # re-apply the pupil map
 
-        xl0 = np.round(cdiam/2)
+        xl0 = int(np.round(rcdiam/2))
 
         for i in xrange(mls * mls): # cycle ove rthe u-lenses
-            wfs = np.zeros((2*cdiam, 2*cdiam), dtype=complex)
+            wfs = np.zeros((2*rcdiam, 2*rcdiam), dtype=complex)
             li, lj = i / mls, i % mls # i,j indices for the u-lens
-            pi0, pj0 = np.round(li * cdiam), np.round(lj * cdiam)
+            pi0, pj0 = int(np.round(li * cdiam)), int(np.round(lj * cdiam))
 
             wfs[xl0:xl0+rcdiam, xl0:xl0+rcdiam] = wf[pi0:pi0+rcdiam, pj0:pj0+rcdiam]
 
