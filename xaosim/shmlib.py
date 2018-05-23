@@ -66,8 +66,8 @@ mtkeys = ['imname', 'naxis',  'size',    'nel',   'atype',
 # ------------------------------------------------------
 #    string used to decode the binary shm structure
 # ------------------------------------------------------
-hdr_fmt = '80s B 3I Q B d d q q B B B H5x Q Q Q B H'
-
+hdr_fmt_pck = '80s B 3I Q B d d q q B B B H5x Q Q Q B H'           # packed style
+hdr_fmt_aln = '80s B3x 3I Q B7x d d q q B B B1x H2x Q Q Q B1x H4x' # aligned style
 
 ''' 
 ---------------------------------------------------------
@@ -99,7 +99,7 @@ Table taken from Python 2 documentation, section 7.3.2.2.
 '''
 
 class shm:
-    def __init__(self, fname=None, data=None, verbose=False, nbkw=0):
+    def __init__(self, fname=None, data=None, verbose=False, packed=True, nbkw=0):
         ''' --------------------------------------------------------------
         Constructor for a SHM (shared memory) object.
 
@@ -108,12 +108,18 @@ class shm:
         - fname: name of the shared memory file structure
         - data: some array (1, 2 or 3D of data)
         - verbose: optional boolean
+        - packed: True -> packed / False -> aligned data format
+        - nbkw: # of keywords to be appended to the data structure (optional)
 
         Depending on whether the file already exists, and/or some new
         data is provided, the file will be created or overwritten.
         -------------------------------------------------------------- '''
-        self.hdr_fmt   = hdr_fmt  # in case the user is interested
-        self.c0_offset = 144      # fast-offset for counter #0
+        if packed:
+            self.hdr_fmt = hdr_fmt_pck # packed shm structure
+        else:
+            self.hdr_fmt = hdr_fmt_aln # aligned shm structure
+
+        self.c0_offset = 0        # fast-offset for counter #0 (updated later)
         self.kwsz      = 113      # size of a keyword SHM data structure
         # --------------------------------------------------------------------
         #                dictionary containing the metadata
@@ -201,7 +207,8 @@ class shm:
             else:
                 tpl = self.mtdata[mtkeys[i]]
                 minibuf += struct.pack(fmt, tpl[0], tpl[1], tpl[2])
-
+            if mtkeys[i] == "sem": # the mkey before "cnt0" !
+                self.c0_offset = len(minibuf)
         self.im_offset = len(minibuf)
 
         # ---------------------------------------------------------
@@ -266,6 +273,8 @@ class shm:
                 self.mtdata[mtkeys[i]] = mdata_bit[0]
             else:
                 self.mtdata[mtkeys[i]] = mdata_bit
+            if mtkeys[i] == "cnt0":
+                self.c0_offset = offset
             offset += hlen
 
         self.mtdata['imname'] = self.mtdata['imname'].strip('\x00')
