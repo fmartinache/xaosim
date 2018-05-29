@@ -167,6 +167,9 @@ class instrument(object):
         Refer to the code below and the component class definitions to see
         how to proceed with your custom system.
         ------------------------------------------------------------------- '''
+
+        self.delay = delay
+        
         if self.DM is not None:
             self.DM.start(delay)
             
@@ -211,31 +214,43 @@ class instrument(object):
         # --- just in case ---
         self.stop()
         
-        # --- the camera itself ---
-        if (self.cam.shm_cam.fd != 0):
-            self.cam.shm_cam.close()
-
         # --- the atmospheric phase screen ---
-        if (self.atmo.shm_phs.fd != 0):
-            self.atmo.shm_phs.close()
+        try:
+            test = self.atmo.shm_phs.fd
+            if (self.atmo.shm_phs.fd != 0):
+                self.atmo.shm_phs.close()
 
+        except:
+            print("No atmo to shut down")
+
+        time.sleep(self.delay)
+        
         # --- the different DM channels ---
         for i in xrange(self.DM.nch):
             exec "test = self.DM.disp%d.fd" % (i,)
             if (test != 0):
                 exec "self.DM.disp%d.close()" % (i,)
 
+        time.sleep(self.delay)
+        # --- the camera itself ---
+        if (self.cam.shm_cam.fd != 0):
+            self.cam.shm_cam.close()
+
         # --- more DM simulation relevant files ---
         if (self.DM.disp.fd != 0):
             self.DM.disp.close()
 
-        if (self.DM.volt.fd != 0):
-            self.DM.volt.close()
-
-        self.cam = None
-        self.DM = None
-        self.atmo = None
+        try:
+            test = self.DM.volt.fd
+            if (test != 0):
+                self.DM.volt.close()
+        except:
+            pass
             
+        self.cam  = None
+        self.DM   = None
+        self.atmo = None
+        
 # ===========================================================
 # ===========================================================
 class phscreen(object):
