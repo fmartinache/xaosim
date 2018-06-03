@@ -144,9 +144,15 @@ class MyWindow(QtGui.QMainWindow):
             try:
                 self.mySHM = shm(str(args[0]))
                 self.live_counter = -1
+                self.naxis = self.mySHM.mtdata['naxis']
             except:
                 self.mySHM = None
-            
+            try:
+                self.myslice = int(args[1])
+                self.myslice = min(self.myslice, self.mySHM.mtdata['size'][-1]-1)
+            except:
+                self.myslice = 0
+
         # ==============================================
         self.show()
         
@@ -213,7 +219,9 @@ class MyWindow(QtGui.QMainWindow):
             
         self.mySHM = shm(str(fname))
         self.live_counter = -1
-
+        self.naxis = self.mySHM.mtdata['naxis']
+        self.myslice = 0
+        
     # =========================================================
     def refresh_all(self):
         ''' ----------------------------------------------------------
@@ -226,7 +234,11 @@ class MyWindow(QtGui.QMainWindow):
         self.test = 0
         if self.mySHM is not None:
             if self.live_counter < self.mySHM.get_counter():
-                self.data_img = self.mySHM.get_data(False, True)
+                if self.naxis == 2:
+                    self.data_img = self.mySHM.get_data(False, True)
+                else:
+                    self.data_img = self.mySHM.get_data(False, True)[self.myslice]
+                    
                 self.live_counter = self.mySHM.get_counter()
 
             self.refresh_img()
