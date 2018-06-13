@@ -25,6 +25,7 @@ import matplotlib.cm as cm
 
 import os
 import shutil
+import platform
 
 import Image
 
@@ -99,7 +100,11 @@ class MyWindow(QtGui.QMainWindow):
         self.vmax  = False
         self.pwr   = 1.0
         self.mycmap = cm.gray
-        
+
+        self.packed = True
+        if "scexao" in platform.node():
+            self.packed = False
+
         super(MyWindow, self).__init__()
         if not os.path.exists(conf_dir + 'shmimview.ui'):
             uic.loadUi('shmimview.ui', self)
@@ -142,7 +147,7 @@ class MyWindow(QtGui.QMainWindow):
 
         if args is not []:
             try:
-                self.mySHM = shm(str(args[0]))
+                self.mySHM = shm(str(args[0]), packed=self.packed)
                 self.live_counter = -1
                 self.naxis = self.mySHM.mtdata['naxis']
             except:
@@ -217,7 +222,7 @@ class MyWindow(QtGui.QMainWindow):
         if self.mySHM is not None:
             self.mySHM.close()
             
-        self.mySHM = shm(str(fname))
+        self.mySHM = shm(str(fname), packed=self.packed)
         self.live_counter = -1
         self.naxis = self.mySHM.mtdata['naxis']
         self.myslice = 0
