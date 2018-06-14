@@ -16,9 +16,11 @@ implemented, when dealing with camera images.
 '''
 
 from shmlib import shm as shm0
+import numpy as np
 
 class shm(shm0):
-    def __init__(self, fname=None, data=None, verbose=False, packed=True, nbkw=0):
+    def __init__(self, fname=None, data=None,
+                 verbose=False, packed=False, nbkw=0):
         ''' --------------------------------------------------------------
         Constructor for a SHM (shared memory) object.
 
