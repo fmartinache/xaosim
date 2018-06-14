@@ -4,7 +4,7 @@
 Read and write access to shared memory (SHM) structures used by SCExAO
 
 - Author : Frantz Martinache
-- Date   : July 12, 2017
+- Date   : June 13, 2018
 
 Improved version of the original SHM structure used by SCExAO and friends.
 ---------------------------------------------------------------------------
@@ -28,6 +28,10 @@ the rules used by the C compiler).
 
 To request no alignment, while using native byte-order, the first character 
 of the format string must be "="! This is used for keywords.
+
+Between 2017 and 2018, SCExAO began adopting an aligned data-structure
+again. This class was modified accordingly and includes a "packed" 
+constructor option to choose between the two styles.
 ---------------------------------------------------------------------------
 
 Note on the order of axes for the data:
@@ -114,13 +118,18 @@ class shm:
         Depending on whether the file already exists, and/or some new
         data is provided, the file will be created or overwritten.
         -------------------------------------------------------------- '''
-        if packed:
+        self.packed = packed
+        
+        if self.packed:
             self.hdr_fmt = hdr_fmt_pck # packed shm structure
+            self.kwfmt0 = "16s s"      # packed keyword structure
         else:
             self.hdr_fmt = hdr_fmt_aln # aligned shm structure
+            self.kwfmt0 = "16s s7x"    # aligned keyword structure
 
         self.c0_offset = 0        # fast-offset for counter #0 (updated later)
-        self.kwsz      = 113      # size of a keyword SHM data structure
+        self.kwsz      = 96 + struct.calcsize(self.kwfmt0) # keyword SHM size
+
         # --------------------------------------------------------------------
         #                dictionary containing the metadata
         # --------------------------------------------------------------------
@@ -320,7 +329,8 @@ class shm:
         # ------------------------------------------
         #             read from SHM
         # ------------------------------------------
-        kname, ktype = struct.unpack('16s s', self.buf[k0:k0+17]) 
+        kwlen = struct.calcsize(self.kwfmt0)
+        kname, ktype = struct.unpack(self.kwfmt0, self.buf[k0:k0+kwlen]) 
 
         # ------------------------------------------
         # depending on type, select parsing strategy
@@ -336,7 +346,7 @@ class shm:
         elif ktype == 'N': # keyword is unused
             kwfmt = '16s 80s'
         
-        kval, kcomm = struct.unpack(kwfmt, self.buf[k0+17:k0+kwsz])
+        kval, kcomm = struct.unpack(kwfmt, self.buf[k0+kwlen:k0+kwsz])
 
         if kwfmt == '16s 80s':
             kval = str(kval).strip('\x00')
@@ -421,13 +431,13 @@ class shm:
         kcomm = self.kwds[ii]['comment']
 
         if ktype == 'L':
-            kwfmt = '=16s s q 8x 80s'
+            kwfmt = '='+self.kwfmt0+' q 8x 80s'
         elif ktype == 'D':
-            kwfmt = '=16s s d 8x 80s'
+            kwfmt = '='+self.kwfmt0+' d 8x 80s'
         elif ktype == 'S':
-            kwfmt = '=16s s 16s 80s'
+            kwfmt = '='+self.kwfmt0+' 16s 80s'
         elif ktype == 'N':
-            kwfmt = '=16s s 16s 80s'
+            kwfmt = '='+self.kwfmt0+' 16s 80s'
 
         print kwfmt
         print (kname, ktype, kval, kcomm) 
