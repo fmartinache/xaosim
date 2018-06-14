@@ -46,11 +46,6 @@ import os, sys, mmap, struct
 import numpy as np
 import time
 
-try:
-    import astropy.io.fits as pf
-except:
-    import pyfits as pf
-
 # ------------------------------------------------------
 #          list of available data types
 # ------------------------------------------------------
@@ -557,7 +552,12 @@ class shm:
         ----------
         - fitsname: a filename (clobber=True)
         -------------------------------------------------------------- '''
-        pf.writeto(fitsname, self.get_data(), clobber=True)
+        try:
+            import astropy.io.fits as pf
+            pf.writeto(fitsname, self.get_data(), overwrite=True)
+        except:
+            import pyfits as pf
+            pf.writeto(fitsname, self.get_data(), clobber=True)
         return(0)
 
     def get_expt(self,):
