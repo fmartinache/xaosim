@@ -17,10 +17,13 @@ implemented, when dealing with camera images.
 
 from shmlib import shm as shm0
 import numpy as np
+import posix_ipc as ipc
+import pdb
 
 class shm(shm0):
+    # =====================================================================
     def __init__(self, fname=None, data=None,
-                 verbose=False, packed=False, nbkw=0):
+                 verbose=False, nbkw=0):
         ''' --------------------------------------------------------------
         Constructor for a SHM (shared memory) object.
 
@@ -34,9 +37,36 @@ class shm(shm0):
 
         Depending on whether the file already exists, and/or some new
         data is provided, the file will be created or overwritten.
-        -------------------------------------------------------------- '''
-        shm0.__init__(self, fname, data, verbose, packed, nbkw)
 
+        In addition to the generic shm data structure, semaphores are
+        connected to the object.
+        -------------------------------------------------------------- '''
+        shm0.__init__(self, fname, data, verbose, False, nbkw)
+        self.nsem = 10 # number of semaphores to address
+
+        for ii in range(self.nsem):
+            semf = "%s_sem%02d" % (self.mtdata['imname'], ii)
+            exec 'self.sem%02d = ipc.Semaphore(semf, ipc.O_RDWR)' % (ii,)
+
+    # =====================================================================
+    def set_data(self, data, check_dt=False):
+        ''' --------------------------------------------------------------
+        On SCExAO, in addition to updating the actual DM data, on must post
+        semaphores to signal the DM to update
+        -------------------------------------------------------------- '''
+        shm0.set_data(self, data, check_dt)
+        for ii in range(10):
+            semf = "%s_sem%02d" % (self.mtdata['imname'], ii)
+            exec 'self.sem%02d.release()' % (ii,)
+
+    # =====================================================================
+    def close(self,):
+        shm0.close(self)
+        for ii in range(self.nsem):
+            semf = "%s_sem%02d" % (self.mtdata['imname'], ii)
+            exec 'self.sem%02d.close()' % (ii,)
+
+    # =====================================================================
     def get_expt(self,):
         ''' --------------------------------------------------------------
         SCExAO specific: returns the exposure time (from keyword)
@@ -46,6 +76,7 @@ class shm(shm0):
         self.expt = self.kwds[ii0]['value']
         return self.expt
 
+    # =====================================================================
     def get_fps(self,):
         ''' --------------------------------------------------------------
         SCExAO specific: returns the frame rate (from keyword)
@@ -55,6 +86,7 @@ class shm(shm0):
         self.fps = self.kwds[ii0]['value']
         return self.fps
 
+    # =====================================================================
     def get_ndr(self,):
         ''' --------------------------------------------------------------
         SCExAO specific: returns the frame rate (from keyword)
@@ -64,6 +96,7 @@ class shm(shm0):
         self.ndr = self.kwds[ii0]['value']
         return self.ndr
 
+    # =====================================================================
     def get_crop(self,):
         ''' --------------------------------------------------------------
         SCExAO specific: returns the frame rate (from keyword)
