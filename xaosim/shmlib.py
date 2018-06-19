@@ -200,6 +200,7 @@ class shm:
 
         self.select_dtype()
 
+
         # ---------------------------------------------------------
         #          reconstruct a SHM metadata buffer
         # ---------------------------------------------------------
@@ -234,7 +235,6 @@ class shm:
         self.set_data(data)
         self.create_keyword_list()
         self.write_keywords()
-        return(0)
 
     def rename_img(self, newname):
         ''' --------------------------------------------------------------
