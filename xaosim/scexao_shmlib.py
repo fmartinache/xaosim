@@ -48,7 +48,8 @@ class shm(shm0):
 
         for ii in range(self.nsem):
             semf = "%s_sem%02d" % (myname, ii)
-            exec 'self.sem%02d = ipc.Semaphore(semf, ipc.O_RDWR)' % (ii,)
+            exec 'self.sem%02d = ipc.Semaphore(semf, ipc.O_RDWR | ipc.O_CREAT)' % (ii,)
+            test = ipc.Semaphore("%s_semlog" % (myname,), ipc.O_RDWR | ipc.O_CREAT)
         self.nosem = False
 
     # =====================================================================

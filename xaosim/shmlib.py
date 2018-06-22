@@ -132,7 +132,7 @@ class shm:
                        'naxis' : 0,   'size'  : (0,0,0), 'nel': 0, 'atype': 0,
                        'crtime': 0.0, 'latime': 0.0, 
                        'tvsec' : 0.0, 'tvnsec': 0.0,
-                       'shared': 0,   'status': 0, 'logflag': 0, 'sem': 0,
+                       'shared': 1,   'status': 0, 'logflag': 0, 'sem': 10,
                        'cnt0'  : 0,   'cnt1'  : 0, 'cnt2': 0,
                        'write' : 0,   'nbkw'  : 0}
 
