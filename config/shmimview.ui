@@ -62,6 +62,12 @@
           </property>
           <item>
            <widget class="QLabel" name="prop_title">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
               <pointsize>12</pointsize>
@@ -79,6 +85,12 @@
           </item>
           <item>
            <widget class="QLabel" name="lbl_stats">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="text">
              <string/>
             </property>
@@ -88,6 +100,12 @@
            <layout class="QVBoxLayout" name="vl_display">
             <item>
              <widget class="QLabel" name="label_3">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
               <property name="font">
                <font>
                 <pointsize>12</pointsize>
@@ -199,7 +217,7 @@
      <x>0</x>
      <y>0</y>
      <width>789</width>
-     <height>27</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuConfig">
@@ -209,7 +227,14 @@
     <addaction name="actionOpen"/>
     <addaction name="actionQuit"/>
    </widget>
+   <widget class="QMenu" name="menuDark">
+    <property name="title">
+     <string>Dark</string>
+    </property>
+    <addaction name="actionLoadDark"/>
+   </widget>
    <addaction name="menuConfig"/>
+   <addaction name="menuDark"/>
   </widget>
   <action name="actionOpen">
    <property name="text">
@@ -224,6 +249,11 @@
   <action name="actionOpenDark">
    <property name="text">
     <string>Open SHM dark</string>
+   </property>
+  </action>
+  <action name="actionLoadDark">
+   <property name="text">
+    <string>Load dark SHM</string>
    </property>
   </action>
  </widget>

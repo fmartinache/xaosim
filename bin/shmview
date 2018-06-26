@@ -133,7 +133,10 @@ class MyWindow(QtGui.QMainWindow):
 
         self.chB_nonlinear.stateChanged[int].connect(self.update_nonlinear)
 
-        self.cmB_cbar.addItems(['gray', 'hot', 'jet', 'viridis', 'magma', 'banana'])
+        self.chB_dark_sub.stateChanged[int].connect(self.update_dark_state)
+        
+        self.cmB_cbar.addItems(['gray', 'hot', 'cool', 'bone', 'jet',
+                                'viridis', 'magma'])
         self.cmB_cbar.activated[str].connect(self.update_cbar)
         self.cmB_cbar.setCurrentIndex(0)
 
@@ -144,7 +147,8 @@ class MyWindow(QtGui.QMainWindow):
         self.actionQuit.setShortcut('Ctrl+Q')
 
         self.actionOpen.triggered.connect(self.load_shm)
-
+        self.actionLoadDark.triggered.connect(self.load_shm_drk)
+        
         if args is not []:
             try:
                 self.mySHM = shm(str(args[0]), packed=self.packed)
@@ -158,6 +162,7 @@ class MyWindow(QtGui.QMainWindow):
             except:
                 self.myslice = 0
 
+        self.myDRK = None
         # ==============================================
         self.show()
         
@@ -197,6 +202,12 @@ class MyWindow(QtGui.QMainWindow):
             self.pwr = 0.3
 
     # =========================================================
+    def update_dark_state(self):
+        if self.live_counter == self.mySHM.get_counter():
+            self.live_counter -= 1
+        pass
+    
+    # =========================================================
     def refresh_img(self):
         self.imv_data.setImage(arr2im(self.data_img.T,
                                       vmin=self.vmin, vmax=self.vmax,
@@ -205,11 +216,15 @@ class MyWindow(QtGui.QMainWindow):
 
     # =========================================================
     def refresh_stats(self):
-        self.toto = "OK"
+
         pt_levels = [0, 5, 10, 20, 50, 75, 90, 95, 99, 100]
         pt_values = np.percentile(self.data_img, pt_levels)
         
         msg = "<pre>\n"
+
+        for ii,kwd in enumerate(self.mySHM.kwds):
+            msg += "%10s : %10s \n" % (kwd['name'], kwd['value'])
+
         for i, ptile in enumerate(pt_levels):
             msg += "p-tile %3d = %8.2f\n" % (ptile, pt_values[i])
         msg += "</pre>"
@@ -226,18 +241,24 @@ class MyWindow(QtGui.QMainWindow):
         self.live_counter = -1
         self.naxis = self.mySHM.mtdata['naxis']
         self.myslice = 0
+        self.myDRK = np.zeros_like(self.mySHM.get_data())
         
+    # =========================================================
+    def load_shm_drk(self):
+        fname = QtGui.QFileDialog.getOpenFileName(self, 'Load SHM file', 
+                                                  '/tmp/*.im.shm')
+        temp = shm(str(fname), packed=self.packed)
+        self.myDRK = temp.get_data()
+        temp.close()
+
     # =========================================================
     def refresh_all(self):
         ''' ----------------------------------------------------------
         Refresh the display
-
-        Independently from the "under the hood" engine, the display
-        gets refreshed every now and then, to give visual feedback
-        to the user.
         ---------------------------------------------------------- '''
         self.test = 0
         if self.mySHM is not None:
+
             if self.live_counter < self.mySHM.get_counter():
                 if self.naxis == 2:
                     self.data_img = self.mySHM.get_data(False, True)
@@ -245,6 +266,12 @@ class MyWindow(QtGui.QMainWindow):
                     self.data_img = self.mySHM.get_data(False, True)[self.myslice]
                     
                 self.live_counter = self.mySHM.get_counter()
+                
+                if self.chB_dark_sub.isChecked():
+                    try:
+                        self.data_img -= self.myDRK
+                    except:
+                        pass
 
             self.refresh_img()
             self.refresh_stats()
