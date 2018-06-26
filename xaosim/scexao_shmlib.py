@@ -41,12 +41,16 @@ class shm(shm0):
         In addition to the generic shm data structure, semaphores are
         connected to the object.
         -------------------------------------------------------------- '''
+        self.nosem = True
         shm0.__init__(self, fname, data, verbose, False, nbkw)
         self.nsem = 10 # number of semaphores to address
+        myname = fname.split('/tmp/')[-1].split('.')[0]
 
         for ii in range(self.nsem):
-            semf = "%s_sem%02d" % (self.mtdata['imname'], ii)
-            exec 'self.sem%02d = ipc.Semaphore(semf, ipc.O_RDWR)' % (ii,)
+            semf = "%s_sem%02d" % (myname, ii)
+            exec 'self.sem%02d = ipc.Semaphore(semf, ipc.O_RDWR | ipc.O_CREAT)' % (ii,)
+            test = ipc.Semaphore("%s_semlog" % (myname,), ipc.O_RDWR | ipc.O_CREAT)
+        self.nosem = False
 
     # =====================================================================
     def set_data(self, data, check_dt=False):
@@ -55,13 +59,16 @@ class shm(shm0):
         semaphores to signal the DM to update
         -------------------------------------------------------------- '''
         shm0.set_data(self, data, check_dt)
-        for ii in range(10):
-            semf = "%s_sem%02d" % (self.mtdata['imname'], ii)
-            exec 'self.sem%02d.release()' % (ii,)
-
+        if self.nosem is False:
+            for ii in range(10):
+                semf = "%s_sem%02d" % (self.mtdata['imname'], ii)
+                exec 'self.sem%02d.release()' % (ii,)
+        else:
+            print("skip sem post this first time")
     # =====================================================================
     def close(self,):
         shm0.close(self)
+        #if self.nosem is False:
         for ii in range(self.nsem):
             semf = "%s_sem%02d" % (self.mtdata['imname'], ii)
             exec 'self.sem%02d.close()' % (ii,)
