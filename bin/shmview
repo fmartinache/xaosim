@@ -180,7 +180,6 @@ class MyWindow(QtGui.QMainWindow):
         try:
             exec 'self.mycmap = cm.%s' % (cbar,)
         except:
-            print("colormap %s is not available" % (cbar,))
             self.mycmap = cm.jet
 
     # =========================================================
