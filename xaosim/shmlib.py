@@ -154,7 +154,8 @@ class shm:
 
         # ---------------
         else:
-            print("reading from existing %s" % (fname,))
+            if verbose:
+                print("reading from existing %s" % (fname,))
             self.fd      = os.open(fname, os.O_RDWR)
             self.stats   = os.fstat(self.fd)
             self.buf_len = self.stats.st_size
