@@ -154,6 +154,7 @@ class MyWindow(QtGui.QMainWindow):
                 self.mySHM = shm(str(args[0]), packed=self.packed)
                 self.live_counter = -1
                 self.naxis = self.mySHM.mtdata['naxis']
+                print(self.mySHM.kwds)
             except:
                 self.mySHM = None
             try:
