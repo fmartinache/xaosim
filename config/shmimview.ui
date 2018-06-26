@@ -76,7 +76,7 @@
              </font>
             </property>
             <property name="text">
-             <string>Array properties</string>
+             <string>Image properties</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignCenter</set>
