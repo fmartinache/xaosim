@@ -154,7 +154,7 @@ class MyWindow(QtGui.QMainWindow):
                 self.mySHM = shm(str(args[0]), packed=self.packed)
                 self.live_counter = -1
                 self.naxis = self.mySHM.mtdata['naxis']
-                print(self.mySHM.kwds)
+                #print(self.mySHM.kwds)
             except:
                 self.mySHM = None
             try:
@@ -264,7 +264,8 @@ class MyWindow(QtGui.QMainWindow):
                     self.data_img = self.mySHM.get_data(False, True)
                 else:
                     self.data_img = self.mySHM.get_data(False, True)[self.myslice]
-                    
+
+                self.data_img = self.data_img.astype(np.float)
                 self.live_counter = self.mySHM.get_counter()
                 
                 if self.chB_dark_sub.isChecked():
