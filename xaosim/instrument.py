@@ -23,7 +23,7 @@ except:
 # ===========================================================
 class instrument(object):
     # ==================================================
-    def __init__(self, name="SCExAO"):
+    def __init__(self, name="SCExAO", shdir='/tmp/'):
         ''' Default instantiation of an instrument object
 
         In the context of xaosim, an instrument is simply an assembly of 
@@ -32,6 +32,12 @@ class instrument(object):
         - an atmospheric phase screen
         - a camera
         -------------------------------------------------------------------
+        Parameters:
+        ----------
+
+        - name: string, either a preset (eg. "SCExAO")
+        - shdir: location where to write shared memory files (eg. "/dev/shm/")
+        
         Usage:
         -----
 
@@ -47,33 +53,38 @@ class instrument(object):
 
         the returned object is an empty shell that will have to be manually
         fed, using the class constructors below.
+
         ------------------------------------------------------------------- '''
         self.name = name
+        self.shdir = shdir
         if self.name == "SCExAO":
             print("Creating %s" % (self.name,))
             arr_size = 512
             dms = 50
-            self.DM  = DM(self.name, dms, 8)
-            self.cam = cam(self.name, arr_size, (320,256), 16.7, 1.6e-6)
-            self.atmo = phscreen(self.name, arr_size, self.cam.ld0, dms, 1500.0)
+            self.DM  = DM(self.name, dms, 8, shdir=shdir)
+            self.cam = cam(self.name, arr_size, (320,256),
+                           16.7, 1.6e-6, shdir=shdir)
+            self.atmo = phscreen(self.name, arr_size, self.cam.ld0,
+                                 dms, 1500.0, shdir=shdir)
 
         elif self.name == "CIAO":
             arr_size = 128
             dms      = 11
-            self.DM  = DM(self.name, dms, 8)
+            self.DM  = DM(self.name, dms, 8, shdir=shdir)
 
             self.cam = SHcam(self.name, sz = 128, dsz = 128, mls = 10,
                              pscale = 36.56, wl = 0.8e-6, 
-                             shmf = '/tmp/SHcam.im.shm')
-
-            self.atmo = None#phscreen(self.name, arr_size, 10, dms, 500.0)
+                             shmf = 'SHcam.im.shm', shdir=shdir)
+            self.atmo = None
             
         elif self.name == "NIRC2":
             arr_size = 256
             dms = 50
-            self.DM = DM(self.name, dms, 4)
-            self.cam = cam(self.name, arr_size, (128,128), 10.0, 3.776e-6)
-            self.atmo = phscreen(self.name, arr_size, self.cam.ld0, dms, 1500.0)
+            self.DM = DM(self.name, dms, 4, shdir=shdir)
+            self.cam = cam(self.name, arr_size, (128,128), 10.0, 3.776e-6,
+                           shdir=shdir)
+            self.atmo = phscreen(self.name, arr_size, self.cam.ld0,
+                                 dms, 1500.0, shdir=shdir)
             
         else:
             print("""No template for '%s':
@@ -178,11 +189,11 @@ class instrument(object):
         
         if (self.name == "SCExAO"):
             self.cam.start(delay,
-                           "/tmp/dmdisp.im.shm",
-                           "/tmp/phscreen.im.shm")
+                           self.shdir+"dmdisp.im.shm",
+                           self.shdir+"phscreen.im.shm")
 
         if  (self.name == "CIAO"):
-            self.cam.start(delay, "/tmp/dmdisp.im.shm")
+            self.cam.start(delay, self.shdir+"dmdisp.im.shm")
 
     # ==================================================
     def stop(self,):
@@ -279,7 +290,7 @@ class phscreen(object):
     '''
     # ==================================================
     def __init__(self, name, sz = 512, ld0 = 10, dms = 50, rms = 100.0,
-                 shmf='/tmp/phscreen.im.shm'):
+                 shmf='phscreen.im.shm', shdir='/tmp/'):
 
         ''' Kolmogorov type atmosphere + qstatic error
 
@@ -295,6 +306,7 @@ class phscreen(object):
         -----------------------------------------------------
         '''
         self.shmf    = shmf
+        self.shdir   = shdir
         self.sz      = sz
         self.rms     = np.float(rms)
         self.rms_i   = np.float(rms)
@@ -307,7 +319,7 @@ class phscreen(object):
 
         self.pdiam = np.round(sz / ld0).astype(int)
         self.qstatic = np.zeros((self.pdiam, self.pdiam))
-        self.shm_phs = shm(shmf, data = self.qstatic, verbose=False)
+        self.shm_phs = shm(shdir + shmf, data = self.qstatic, verbose=False)
 
         self.kolm2   = np.tile(self.kolm, (2,2))
         self.kolm2   = self.kolm2[:self.sz+self.pdiam,:self.sz+self.pdiam]
@@ -469,7 +481,7 @@ class cam(object):
     # ==================================================
     def __init__(self, name, sz = 512, 
                  (xs, ys) = (320, 256), pscale = 10.0, wl = 1.6e-6,
-                 shmf = '/tmp/ircam.im.shm'):
+                 shmf = 'ircam.im.shm', shdir='/tmp/'):
         ''' Default instantiation of a cam object:
 
         -------------------------------------------------------------------
@@ -481,6 +493,7 @@ class cam(object):
         - pscale  : the plate scale of the image, in mas/pixel
         - wl      : the central wavelength of observation, in meters
         - shmf    : the name of the file used to point the shared memory
+        - shdir   : the name of the shared memory directory
         ------------------------------------------------------------------- '''
 
         self.name    = name
@@ -495,8 +508,9 @@ class cam(object):
         self.pscale  = pscale              # plate scale in mas/pixel
         self.wl      = wl                  # wavelength in meters
         self.frm0    = np.zeros((ys, xs))  # initial camera frame
-        self.shmf    = shmf                # the shared memory "file"
-
+        self.shmf    = shdir+shmf          # the shared memory "file"
+        self.shdir   = shdir               # the shared memory directory
+        
         self.px0     = (self.sz-self.xs)/2 # pixel offset for image within array
         self.py0     = (self.sz-self.ys)/2 # pixel offset for image within array
 
@@ -761,7 +775,7 @@ class SHcam(cam):
     # ==================================================
     def __init__(self, name, sz = 256, dsz = 128, mls = 10,
                  pscale = 36.56, wl = 0.8e-6,
-                 shmf = '/tmp/SHcam.im.shm'):
+                 shmf = 'SHcam.im.shm', shdir='/tmp/'):
 
         ''' Instantiation of a SH camera
 
@@ -775,7 +789,7 @@ class SHcam(cam):
         - pscale  : the plate scale of the image, in mas/pixel
         - wl      : the central wavelength of observation, in meters
         - shmf    : the name of the file used to point the shared memory
-
+        - shdir   : the shared memory directory
         ------------------------------------------------------------------- '''
         self.name    = name
         self.sz      = sz
@@ -785,7 +799,8 @@ class SHcam(cam):
         self.pscale  = pscale
         self.mls     = mls                 # u-lens array size (in lenses)
         
-        self.shmf    = shmf                # the shared memory "file"
+        self.shmf    = shdir+shmf          # the shared memory "file"
+        self.shdir   = shdir
         self.frm0    = np.zeros((dsz,dsz)) # initial camera frame
 
         self.px0     = (self.sz-self.xs)/2 # pixel offset for image within array
@@ -901,7 +916,7 @@ class DM(object):
 
     # ==================================================
     def __init__(self, instrument="SCExAO", dms=50, nch=8, 
-                 shm_root="/tmp/dmdisp"):
+                 shm_root="dmdisp", shdir="/tmp/"):
         ''' -----------------------------------------
         Constructor for instance of deformable mirror
         Parameters:
@@ -916,15 +931,15 @@ class DM(object):
         self.nch = nch # numbers of channels to drive the DM
         self.dmd0 = np.zeros((dms, dms), dtype=np.float32)
         self.shm_cntr = np.zeros(nch) - 1
-        self.disp = shm('%s.im.shm' % (shm_root,), 
+        self.disp = shm('%s/%s.im.shm' % (shdir, shm_root), 
                         data=self.dmd0, verbose=False)
 
         for i in xrange(nch):
-            exec '''self.disp%d = shm(fname='%s%d.im.shm', 
-            data=self.dmd0, verbose=False)''' % (i,shm_root,i)
+            exec '''self.disp%d = shm(fname='%s/%s%d.im.shm', 
+            data=self.dmd0, verbose=False)''' % (i,shdir, shm_root,i)
 
         if "SCExAO" in instrument:
-            self.volt = shm("/tmp/dmvolt.im.shm", 
+            self.volt = shm("%s/dmvolt.im.shm" % (shdir,), 
                             data=self.dmd0, verbose=False)
 
     # ==================================================
