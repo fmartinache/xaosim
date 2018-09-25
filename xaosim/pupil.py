@@ -445,11 +445,15 @@ def segmented_aperture(sz, nr, srad, rot=0.0):
     return(pup)
 
 # ======================================================================
-def golay9(sz, prad, hrad):
+def golay9(sz, prad, hrad, between_pix=True):
     ''' Returns a square "sz x sz" NR Golay 9 pupil model of radius 
     "prad" and hole diameter "hrad".
     '''
-    xx,yy  = np.meshgrid(np.arange(sz)-sz/2, np.arange(sz)-sz/2)
+    off = 0
+    if between_pix is True:
+        off = 0.5
+    xx,yy  = np.meshgrid(np.arange(sz)-sz/2+off, np.arange(sz)-sz/2+off)
+        
     mydist = np.hypot(yy,xx)
     dstep  = prad / 3.5
 
