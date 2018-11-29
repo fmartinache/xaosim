@@ -445,10 +445,18 @@ def segmented_aperture(sz, nr, srad, rot=0.0):
     return(pup)
 
 # ======================================================================
-def golay9(sz, prad, hrad, between_pix=True):
-    ''' Returns a square "sz x sz" NR Golay 9 pupil model of radius 
-    "prad" and hole diameter "hrad".
-    '''
+def golay9(sz, prad, hrad, between_pix=True, rot=0.0):
+    ''' -------------------------------------------------------------
+    Returns a square "sz x sz" NR Golay 9 pupil model
+
+    Parameters:
+    ----------
+    - sz:          size of the 2D array to produce (in pixels)
+    - prad:        size of the pupil the mask fits into (in pixels)
+    - hrad:        sub-aperture radius (in pixels)
+    - between_pix: centers the array between 4 pixels (boolean)
+    - rot:         mask azimuth (in radians)
+    ------------------------------------------------------------- '''
     off = 0
     if between_pix is True:
         off = 0.5
@@ -456,34 +464,30 @@ def golay9(sz, prad, hrad, between_pix=True):
         
     mydist = np.hypot(yy,xx)
     dstep  = prad / 3.5
+    d1     = dstep*np.sqrt(7)
+    th0    = np.arctan(np.sqrt(3)/2)
 
     xs = np.array([])
     ys = np.array([])
 
     pup = np.zeros((sz,sz))
     for i in xrange(3):
-        theta = 2.0 * i * np.pi / 3.0
+        theta = 2.0 * i * np.pi / 3.0 + rot
 
-        for k in xrange(1,3):
-            xs = np.append(xs, (k+1) * dstep * np.cos(theta))
-            ys = np.append(ys, (k+1) * dstep * np.sin(theta))
+        for k in xrange(2,4):
+            xs = np.append(xs, k * dstep * np.cos(theta))
+            ys = np.append(ys, k * dstep * np.sin(theta))
 
-        xs = np.append(xs,  2 * dstep)
-        ys = np.append(ys, -2 * dstep * np.sqrt(3) / 2)
-
-        xs = np.append(xs,  -3 * dstep * np.sqrt(3) / 2)
-        ys = np.append(ys, - dstep * np.sqrt(3) / 2)
-
-        xs = np.append(xs, 0.5 * dstep * np.sqrt(3) / 2)
-        ys = np.append(ys, 3 * dstep * np.sqrt(3) / 2)
+        xs = np.append(xs,  d1 * np.cos(theta - th0))
+        ys = np.append(ys,  d1 * np.sin(theta - th0))
 
     xs = np.cast['int'](np.round(xs))
     ys = np.cast['int'](np.round(ys))
         
     for i in xrange(xs.size):
-        pup = np.roll(np.roll(pup, -xs[i], 0), -ys[i], 1)
+        pup = np.roll(np.roll(pup, -ys[i], 0), -xs[i], 1)
         pup[mydist < hrad] = 1.0
-        pup = np.roll(np.roll(pup,  xs[i], 0),  ys[i], 1)
+        pup = np.roll(np.roll(pup,  ys[i], 0),  xs[i], 1)
 
     return(pup)
 
