@@ -333,6 +333,27 @@ def VLT((n,m), radius, spiders=True, between_pix=True):
                             between_pix=between_pix))
 
 # ==================================================================
+def keck(sz, spiders=True, between_pix=True):
+    tmp = segmented_aperture(sz, 3, sz/7, rot=0.0)
+    xx, yy = np.meshgrid(np.arange(sz)-sz/2, np.arange(sz)-sz/2)
+    dist = np.hypot(yy, xx)
+    obst = np.ones((sz,sz))
+
+    #pdb.set_trace()
+    obst[dist <= 0.121 * sz] = 0.0
+    tmp *= obst
+
+    thick = 0.00116 * sz
+    for ii in range(6):
+        ang = 30.0 + 60.0 * ii
+        zone = (xx > 0) * (np.abs(yy) <= thick)
+        res = np.ones((sz,sz))
+        res[zone] = 0.0
+        res = rotate(res, ang, order=0, reshape=False)
+        tmp *= res
+    return(tmp)
+
+# ==================================================================
 def subaru((n,m), radius, spiders=True, between_pix=True):
     ''' ---------------------------------------------------------
     returns an array that draws the pupil of the Subaru Telescope
