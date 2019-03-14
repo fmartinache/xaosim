@@ -30,15 +30,15 @@ Example use:
 
 # import xaosim
 
-# mysetup = xaosim.instrument("CIAO")
+# mysetup = xaosim.instrument("SCExAO")
 
 # mysetup.start()
 
 In a distinct shell:
 
->> shmview /tmp/phscreen.im.shm &
+>> shmview /dev/shm/phscreen.im.shm &
 
->> shmview /tmp/ciao_cam.im.shm &
+>> shmview /dev/shm/ircam.im.shm &
 
 Will open two pygame displays that show the live image and phase screen.
 
@@ -54,6 +54,11 @@ The package includes:
 - a camera (CAM) module that produces images of a point source affected after
   the wavefront has undergone the transformation induced by the DM.
 
+The code is reasonably well documented and if you are experienced with
+diffractive optics simulations, you should quickly feel at home, and change the
+parameters of the turbulence, simulate partial AO correction and even use a
+perfect coronagraph.
+  
 It relies on a series of auxilliary tools:
 -----------------------------------------
 
@@ -72,12 +77,17 @@ It relies on a series of auxilliary tools:
 Release Notes:
 -------------
 
-- On some systems, after installation is complete, the call for "shmview" may
-  fail due to apparent permission limitations. The exact error message
-  encountered is: "IOError: [Errno 13] Permission denied:
-  '/usr/local/lib/python2.7/dist-packages/xaosim-0.1-py2.7.egg/EGG-INFO/requires.txt"
+If you do not use the --user option when installing the package, you may run
+into some permission problems when attempting to use "shmview". Carefully
+looking at the error message, you can update the permissions on incriminated
+file.
 
-  The current fix is to set the permissions right on this requirement file:
+Example of possible error message:
 
-  "sudo chmod a+r /usr/local/lib/python2.7/dist-packages/xaosim-0.1-py2.7.egg/EGG-INFO/requires.txt"
+"IOError: [Errno 13] Permission denied:
+/usr/local/lib/python2.7/dist-packages/xaosim-0.1-py2.7.egg/EGG-INFO/requires.txt"
+
+And a possible work-around:
+
+"sudo chmod a+r /usr/local/lib/python2.7/dist-packages/xaosim-0.1-py2.7.egg/EGG-INFO/requires.txt"
 
