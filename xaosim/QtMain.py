@@ -72,9 +72,9 @@ else:
     import queue as Queue
 
 # PyQt4 only
-from PyQt4.QtGui import QApplication
+#from PyQt5.QtGui import QApplication
 # if using qtpy package that provides lovely Qt4/Qt5/PySide wrapping
-#from qtpy.QtWidgets import QApplication
+from qtpy.QtWidgets import QApplication
 
 
 class QtMain(object):

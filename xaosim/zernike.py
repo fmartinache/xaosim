@@ -7,7 +7,7 @@ shift = np.fft.fftshift
 # ----------------------------------------
 #   equivalent of the IDL dist function
 # ----------------------------------------
-def dist((n,m)):
+def dist(n,m):
     x,y = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
     return(np.hypot(y,x))
 
@@ -15,7 +15,7 @@ def dist((n,m)):
 # Returns the azimuth in radians of points in an array of 
 # size (n, m) with respect to the center of the array.
 # ---------------------------------------------------------
-def azim((n, m)):
+def azim(n, m):
     xx,yy = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
     return np.arctan2(xx,yy)
 
@@ -65,7 +65,7 @@ def mkzer(n, m, size, rad, limit=False):
     res = np.zeros((size, size))
     (coeffs, pows) = zer_coeff(n,np.abs(m))
 
-    rho = dist((size, size))/float(rad)
+    rho = dist(size, size)/float(rad)
     outp = np.where(rho >  1.0)
     inp  = np.where(rho <= 1.0)
 
@@ -75,7 +75,7 @@ def mkzer(n, m, size, rad, limit=False):
     if (limit != False): 
         res[outp] = 0.0
 
-    azi = azim((size, size))
+    azi = azim(size, size)
 
     if m > 0:
         res *= np.cos(m * azi)

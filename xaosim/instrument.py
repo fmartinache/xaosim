@@ -1,8 +1,8 @@
 import numpy as np
 import threading
 import time
-import pupil
-from shmlib import shm
+from . import pupil
+from .shmlib import shm
 from PIL import Image
 import pdb
 
@@ -23,7 +23,7 @@ except:
 # ===========================================================
 class instrument(object):
     # ==================================================
-    def __init__(self, name="SCExAO", shdir='/tmp/'):
+    def __init__(self, name="SCExAO", shdir='/dev/shm/'):
         ''' Default instantiation of an instrument object
 
         In the context of xaosim, an instrument is simply an assembly of 
@@ -57,12 +57,14 @@ class instrument(object):
         ------------------------------------------------------------------- '''
         self.name = name
         self.shdir = shdir
+        self.delay = 0.1 # default delay value
+
         if self.name == "SCExAO":
             print("Creating %s" % (self.name,))
             arr_size = 512
             dms = 50
             self.DM  = DM(self.name, dms, 8, shdir=shdir)
-            self.cam = cam(self.name, arr_size, (320,256),
+            self.cam = cam(self.name, arr_size, 320,256,
                            16.7, 1.6e-6, shdir=shdir)
             self.atmo = phscreen(self.name, arr_size, self.cam.ld0,
                                  dms, 1500.0, shdir=shdir)
@@ -72,16 +74,17 @@ class instrument(object):
             dms      = 11
             self.DM  = DM(self.name, dms, 8, shdir=shdir)
 
-            self.cam = SHcam(self.name, sz = 128, dsz = 128, mls = 10,
-                             pscale = 36.56, wl = 0.8e-6, 
-                             shmf = 'SHcam.im.shm', shdir=shdir)
+            self.cam = SHcam(self.name, sz=128, dsz=128, mls=10,
+                             pscale=36.56, wl=0.8e-6, 
+                             shmf='SHcam.im.shm', shdir=shdir)
             self.atmo = None
             
         elif self.name == "NIRC2":
             arr_size = 256
             dms = 50
             self.DM = DM(self.name, dms, 4, shdir=shdir)
-            self.cam = cam(self.name, arr_size, (128,128), 10.0, 3.776e-6,
+            self.cam = cam(self.name, arr_size, 128, 128,
+                           10.0, 3.776e-6,
                            shdir=shdir)
             self.atmo = phscreen(self.name, arr_size, self.cam.ld0,
                                  dms, 1500.0, shdir=shdir)
@@ -123,7 +126,7 @@ class instrument(object):
         prev_dm_shmf   = self.cam.dm_shmf
         
         self.cam = cam(self.name, self.cam.sz,
-                       (self.cam.xs, self.cam.ys), self.cam.pscale, wl)
+                       self.cam.xs, self.cam.ys, self.cam.pscale, wl)
         self.atmo = phscreen(self.name, self.cam.sz, self.cam.ld0, self.atmo.rms)
 
         if camwasgoing:
@@ -149,7 +152,7 @@ class instrument(object):
         if self.atmo is not None:
             cmd_args += 'phscreen = self.atmo.shm_phs.get_data()'
 
-        exec "self.cam.make_image(%s)" % (cmd_args,)
+        exec("self.cam.make_image(%s)" % (cmd_args,))
 
         return(self.cam.get_image())
     
@@ -237,10 +240,10 @@ class instrument(object):
         time.sleep(self.delay)
         
         # --- the different DM channels ---
-        for i in xrange(self.DM.nch):
-            exec "test = self.DM.disp%d.fd" % (i,)
+        for i in range(self.DM.nch):
+            exec("test = self.DM.disp%d.fd" % (i,))
             if (test != 0):
-                exec "self.DM.disp%d.close()" % (i,)
+                exec("self.DM.disp%d.close()" % (i,))
 
         time.sleep(self.delay)
         # --- the camera itself ---
@@ -290,7 +293,7 @@ class phscreen(object):
     '''
     # ==================================================
     def __init__(self, name, sz = 512, ld0 = 10, dms = 50, rms = 100.0,
-                 shmf='phscreen.im.shm', shdir='/tmp/'):
+                 shmf='phscreen.im.shm', shdir='/dev/shm/'):
 
         ''' Kolmogorov type atmosphere + qstatic error
 
@@ -480,8 +483,8 @@ class cam(object):
     '''
     # ==================================================
     def __init__(self, name, sz = 512, 
-                 (xs, ys) = (320, 256), pscale = 10.0, wl = 1.6e-6,
-                 shmf = 'ircam.im.shm', shdir='/tmp/'):
+                 xs = 320, ys = 256, pscale = 10.0, wl = 1.6e-6,
+                 shmf = 'ircam.im.shm', shdir='/dev/shm/'):
         ''' Default instantiation of a cam object:
 
         -------------------------------------------------------------------
@@ -511,8 +514,8 @@ class cam(object):
         self.shmf    = shdir+shmf          # the shared memory "file"
         self.shdir   = shdir               # the shared memory directory
         
-        self.px0     = (self.sz-self.xs)/2 # pixel offset for image within array
-        self.py0     = (self.sz-self.ys)/2 # pixel offset for image within array
+        self.px0     = (self.sz-self.xs)//2 # pixel offset for image within array
+        self.py0     = (self.sz-self.ys)//2 # pixel offset for image within array
 
         self.phot_noise = False            # default state for photon noise
         self.signal     = 1e6              # default number of photons in frame
@@ -593,17 +596,17 @@ class cam(object):
         rsz = size * rebin
         rrad = radius * rebin
         if name == "SCExAO":
-            res = pupil.subaru((rsz, rsz), rrad, spiders=True)
+            res = pupil.subaru(rsz, rsz, rrad, spiders=True)
 
         elif name == "NICMOS":
-            res = pupil.HST((rsz, rsz), rrad, spiders=True)
+            res = pupil.HST(rsz, rsz, rrad, spiders=True)
             
         elif name == "NIRC2":
             th0 = -20.5*np.pi/180.0 # pupil angle
             res = pupil.segmented_aperture(rsz, 3, int(rrad/3), rot=th0)
         else:
             print("Default: unobstructed circular aperture")
-            res = pupil.uniform_disk((rsz, rsz), rrad)
+            res = pupil.uniform_disk(rsz, rsz, rrad)
 
         res = res.reshape(size, rebin, size, rebin).mean(3).mean(1)
         return(res)
@@ -639,7 +642,7 @@ class cam(object):
             zoom = self.prad0 / (dms/2.0) # scaling factor for DM 2 WF array
             rwf = int(np.round(zoom*dms)) # resized wavefront
         
-            x0 = (self.sz-rwf)/2
+            x0 = (self.sz-rwf)//2
             x1 = x0 + rwf
 
             phs0 = Image.fromarray(mu2phase * dmmap)   # phase map
@@ -661,7 +664,7 @@ class cam(object):
         self.fc_pa = fft(shift(wf)) / self.sz # focal plane complex amplitude
 
         img = shift(np.abs(self.fc_pa)**2)
-               
+
         frm = img[self.py0:self.py0+self.ys, self.px0:self.px0+self.xs]
 
         if self.phot_noise: # need to be recast to fit original format
@@ -765,7 +768,7 @@ class cam(object):
                     myphscreen = atm_map.get_data()
                     cmd_args += "phscreen = myphscreen,"
 
-            exec "self.make_image(%s)" % (cmd_args,)
+            exec("self.make_image(%s)" % (cmd_args,))
 
             time.sleep(delay)
 
@@ -775,7 +778,7 @@ class SHcam(cam):
     # ==================================================
     def __init__(self, name, sz = 256, dsz = 128, mls = 10,
                  pscale = 36.56, wl = 0.8e-6,
-                 shmf = 'SHcam.im.shm', shdir='/tmp/'):
+                 shmf = 'SHcam.im.shm', shdir='/dev/shm/'):
 
         ''' Instantiation of a SH camera
 
@@ -813,7 +816,7 @@ class SHcam(cam):
         self.dm_shmf    = None             # associated shared mem file for DM
         self.atmo_shmf  = None             # idem for atmospheric phase screen
         
-        self.pupil   = self.get_pupil(self.name, self.sz, self.sz/2)
+        self.pupil   = self.get_pupil(self.name, self.sz, self.sz//2)
 
         #super(SHcam, self).self_update()
         self.shm_cam = shm(self.shmf, data = self.frm0, verbose=False)
@@ -855,7 +858,7 @@ class SHcam(cam):
             #zoom = self.prad0 / (dms/2.0) # scaling factor for DM 2 WF array
             rwf = self.sz#int(np.round(zoom*dms)) # resized wavefront
         
-            x0 = (self.sz-rwf)/2
+            x0 = (self.sz-rwf)//2
             x1 = x0 + rwf
 
             xx,yy  = np.meshgrid(np.arange(rwf)-rwf/2, np.arange(rwf)-rwf/2)
@@ -876,7 +879,7 @@ class SHcam(cam):
 
         xl0 = int(np.round(rcdiam/2))
 
-        for i in xrange(mls * mls): # cycle ove rthe u-lenses
+        for i in range(mls * mls): # cycle ove rthe u-lenses
             wfs = np.zeros((2*rcdiam, 2*rcdiam), dtype=complex)
             li, lj = i / mls, i % mls # i,j indices for the u-lens
             pi0, pj0 = int(np.round(li * cdiam)), int(np.round(lj * cdiam))
@@ -916,7 +919,7 @@ class DM(object):
 
     # ==================================================
     def __init__(self, instrument="SCExAO", dms=50, nch=8, 
-                 shm_root="dmdisp", shdir="/tmp/"):
+                 shm_root="dmdisp", shdir="/dev/shm/"):
         ''' -----------------------------------------
         Constructor for instance of deformable mirror
         Parameters:
@@ -931,15 +934,15 @@ class DM(object):
         self.nch = nch # numbers of channels to drive the DM
         self.dmd0 = np.zeros((dms, dms), dtype=np.float32)
         self.shm_cntr = np.zeros(nch) - 1
-        self.disp = shm('%s/%s.im.shm' % (shdir, shm_root), 
+        self.disp = shm(fname='%s%s.im.shm' % (shdir, shm_root), 
                         data=self.dmd0, verbose=False)
 
-        for i in xrange(nch):
-            exec '''self.disp%d = shm(fname='%s/%s%d.im.shm', 
-            data=self.dmd0, verbose=False)''' % (i,shdir, shm_root,i)
+        for i in range(nch):
+            exec('''self.disp%d = shm(fname='%s%s%d.im.shm', 
+            data=self.dmd0, verbose=False)''' % (i,shdir, shm_root,i))
 
         if "SCExAO" in instrument:
-            self.volt = shm("%s/dmvolt.im.shm" % (shdir,), 
+            self.volt = shm("%sdmvolt.im.shm" % (shdir,), 
                             data=self.dmd0, verbose=False)
 
     # ==================================================
@@ -949,8 +952,9 @@ class DM(object):
         Reads from the already-opened shared memory
         data structure.
         ---------------------------------------- '''
+        cnt = 0
         if chn < self.nch:
-            exec "cnt = self.disp%d.get_counter()" % (chn,)
+            exec("cnt = self.disp%d.get_counter()" % (chn,))
         else:# chn == nch:
             cnt = self.disp.get_counter()
         return(cnt)
@@ -991,8 +995,8 @@ class DM(object):
         them to update the actual DM shape.
         ---------------------------------------- '''
         combi = np.zeros_like(self.disp0.get_data())
-        for i in xrange(self.nch):
-            exec "combi += self.disp%d.get_data()" % (i,)
+        for i in range(self.nch):
+            exec("combi += self.disp%d.get_data()" % (i,))
         self.dmd = combi
         self.disp.set_data(combi)
         if verbose:
@@ -1004,12 +1008,12 @@ class DM(object):
         Thread (infinite loop) that updates the DM
         shape until told to stop.
 
-        Do not use directly: call start_server()
-        and stop_server() instead.
+        Do not use directly: call start()
+        and stop() instead.
         ---------------------------------------- '''
         updt = True
         while self.keepgoing:
-            for i in xrange(self.nch):
+            for i in range(self.nch):
                 test = self.get_counter_channel(i)
                 if test != self.shm_cntr[i]:
                     self.shm_cntr[i] = test

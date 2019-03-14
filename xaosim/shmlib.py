@@ -45,6 +45,7 @@ Internally in this library, the axes are reversed: z,y,x.
 import os, sys, mmap, struct
 import numpy as np
 import time
+import pdb
 
 # ------------------------------------------------------
 #          list of available data types
@@ -56,7 +57,15 @@ all_dtypes = [np.uint8,     np.int8,    np.uint16,    np.int16,
 # ------------------------------------------------------
 # list of metadata keys for the shm structure (global)
 # ------------------------------------------------------
+'''
 mtkeys = ['imname', 'naxis',  'size',    'nel',   'atype',
+          'crtime', 'latime', 'tvsec',   'tvnsec', 
+          'shared', 'status', 'logflag', 'sem',
+          'cnt0',   'cnt1',   'cnt2',
+          'write',  'nbkw']
+'''
+
+mtkeys = ['bimname', 'naxis', 'x', 'y', 'z', 'nel', 'atype',
           'crtime', 'latime', 'tvsec',   'tvnsec', 
           'shared', 'status', 'logflag', 'sem',
           'cnt0',   'cnt1',   'cnt2',
@@ -65,8 +74,25 @@ mtkeys = ['imname', 'naxis',  'size',    'nel',   'atype',
 # ------------------------------------------------------
 #    string used to decode the binary shm structure
 # ------------------------------------------------------
-hdr_fmt_pck = '80s B 3I Q B d d q q B B B H5x Q Q Q B H'           # packed style
-hdr_fmt_aln = '80s B3x 3I Q B7x d d q q B B B1x H2x Q Q Q B1x H4x' # aligned style
+#hdr_fmt_pck = '80s B 3I Q B d d q q B B B H5x Q Q Q B H'           # packed style
+#hdr_fmt_aln = '80s B3x 3I Q B7x d d q q B B B1x H2x Q Q Q B1x H4x' # aligned style
+
+
+hdr_fmt_pck = '<80s B   I I I Q B   d d q q B B B   H Q Q Q B   H'   # packed
+hdr_fmt_aln = '80s B3x I I I Q B7x d d q q B B B1x H2x Q Q Q B1x H4x' # aligned
+
+
+'''
+   B(1)            I(4)             I(4)             I(4)                             Q(8) B(1)
+b'\x02 \x00\x00\x01   @ \x00\x00\x01\x00 \x00\x00\x00\x00 \x00\x00\x00\x00\x00\x01  @ \x00 \n  \x00\x00\x00\x00\x00\x00\x00 \x00'
+    80   81  82  83   84  85  86  87  88   89  90  91  92  93  94  95  96  97  98 99  100 101  102 103 104 105 106 107  108 109
+
+self.buf[130:163]
+
+                  B(1)B(1)B(1)    H(2)                            Q(8)
+b'\x00\x00\x00\x00\x01\x02\x03\x00\x05\x01\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03'
+   130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159 160 161 162
+'''
 
 ''' 
 ---------------------------------------------------------
@@ -95,6 +121,38 @@ Table taken from Python 2 documentation, section 7.3.2.2.
 | p      | char[]             | string         |          |
 | P      | void *             | integer        |          |
 |--------+--------------------+----------------+----------| 
+
+
+---------------------------------------------------------
+Table taken from Python 3 documentation, section 7.1.2.2.
+---------------------------------------------------------
+
+|--------+--------------------+---------------+----------|
+| Format | C Type             | Python type   | Std size |
+|--------+--------------------+---------------+----------|
+| x      | pad byte           | no value      |          |
+| c      | char               | bytes (len=1) |        1 |
+| b      | signed char        | integer       |        1 |
+| B      | unsigned char      | integer       |        1 |
+| ?      | _Bool              | bool          |        1 |
+| h      | short              | integer       |        2 |
+| H      | unsigned short     | integer       |        2 |
+| i      | int                | integer       |        4 |
+| I      | unsigned int       | integer       |        4 |
+| l      | long               | integer       |        4 |
+| L      | unsigned long      | integer       |        4 |
+| q      | long long          | integer       |        8 |
+| Q      | unsigned long long | integer       |        8 |
+| n      | ssize_t            | integer       |          |
+| N      | size_t             | integer       |          |
+| e      | (7)                | float         |        2 |
+| f      | float              | float         |        4 |
+| d      | double             | float         |        8 |
+| s      | char[]             | bytes         |          |
+| p      | char[]             | bytes         |          |
+| P      | void *             | integer       |          |
+|--------+--------------------+---------------+----------|
+
 '''
 
 class shm:
@@ -128,10 +186,11 @@ class shm:
         # --------------------------------------------------------------------
         #                dictionary containing the metadata
         # --------------------------------------------------------------------
-        self.mtdata = {'imname': '',
-                       'naxis' : 0,   'size'  : (0,0,0), 'nel': 0, 'atype': 0,
+        self.mtdata = {'imname': '', 'bimname': b'',
+                       'naxis' : 0, 'x' : 0, 'y': 0, 'z': 0,
+                       'size'  : (0,0,0), 'nel': 0, 'atype': 0,
                        'crtime': 0.0, 'latime': 0.0, 
-                       'tvsec' : 0.0, 'tvnsec': 0.0,
+                       'tvsec' : 0,   'tvnsec': 0,
                        'shared': 1,   'status': 0, 'logflag': 0, 'sem': 10,
                        'cnt0'  : 0,   'cnt1'  : 0, 'cnt2': 0,
                        'write' : 0,   'nbkw'  : 0}
@@ -140,6 +199,10 @@ class shm:
         #          dictionary describing the content of a keyword
         # --------------------------------------------------------------------
         self.kwd = {'name': '', 'type': 'N', 'value': '', 'comment': ''}
+
+        fmt     = self.hdr_fmt
+        self.c0_offset = struct.calcsize(' '.join(fmt.split()[:15]))
+        self.im_offset = struct.calcsize(fmt)
 
         # ---------------
         if fname is None:
@@ -187,45 +250,49 @@ class shm:
         # ---------------------------------------------------------
         # feed the relevant dictionary entries with available data
         # ---------------------------------------------------------
-        self.npdtype          = data.dtype
-        self.mtdata['imname'] = fname.ljust(80, ' ')
-        self.mtdata['naxis']  = data.ndim
-        self.mtdata['size']   = data.shape[:data.ndim][::-1]
-        self.mtdata['nel']    = data.size
-        self.mtdata['atype']  = self.select_atype()
-        self.mtdata['shared'] = 1
-        self.mtdata['nbkw']   = nbkw
+        self.npdtype            = data.dtype
+        self.mtdata['imname']   = fname.ljust(80, 'x')
+        self.mtdata['bimname']  = bytes(self.mtdata['imname'], 'ascii')
+
+        self.mtdata['naxis']    = data.ndim
+        self.mtdata['size']     = data.shape[:data.ndim][::-1]
+        self.mtdata['nel']      = data.size
+        self.mtdata['atype']    = self.select_atype()
+        self.mtdata['shared']   = 1
+        self.mtdata['nbkw']     = nbkw
         
+        if data.ndim == 3:
+            self.mtdata['x']    = self.mtdata['size'][0]
+            self.mtdata['y']    = self.mtdata['size'][1]
+            self.mtdata['z']    = self.mtdata['size'][2]
         if data.ndim == 2:
+            self.mtdata['x']    = self.mtdata['size'][0]
+            self.mtdata['y']    = self.mtdata['size'][1]
             self.mtdata['size'] = self.mtdata['size'] + (0,)
 
         self.select_dtype()
 
-
         # ---------------------------------------------------------
         #          reconstruct a SHM metadata buffer
         # ---------------------------------------------------------
-        fmts = self.hdr_fmt.split(' ')
-        minibuf = ''
-        for i, fmt in enumerate(fmts):
-            if i != 2:
-                minibuf += struct.pack(fmt, self.mtdata[mtkeys[i]])
-            else:
-                tpl = self.mtdata[mtkeys[i]]
-                minibuf += struct.pack(fmt, tpl[0], tpl[1], tpl[2])
-            if mtkeys[i] == "sem": # the mkey before "cnt0" !
-                self.c0_offset = len(minibuf)
-        self.im_offset = len(minibuf)
+        fmt     = self.hdr_fmt
+        temp    = [self.mtdata[mtkeys[ii]] for ii in range(len(mtkeys))]
+        minibuf = struct.pack(fmt, *temp)
 
+        '''
+        self.c0_offset = struct.calcsize(' '.join(fmt.split()[:15]))
+        self.im_offset = struct.calcsize(fmt)
+        '''
+        
         # ---------------------------------------------------------
         #             allocate the file and mmap it
         # ---------------------------------------------------------
         kwspace = self.kwsz * nbkw                    # kword space
         fsz = self.im_offset + self.img_len + kwspace # file size
-        npg = fsz / mmap.PAGESIZE + 1                 # nb pages
+        npg = fsz // mmap.PAGESIZE + 1                 # nb pages
 
         self.fd = os.open(fname, os.O_CREAT | os.O_TRUNC | os.O_RDWR)
-        os.write(self.fd, '\x00' * npg * mmap.PAGESIZE)
+        os.write(self.fd, b'\x00' * npg * mmap.PAGESIZE)
         self.buf = mmap.mmap(self.fd, npg * mmap.PAGESIZE, 
                              mmap.MAP_SHARED, mmap.PROT_WRITE)
 
@@ -233,6 +300,7 @@ class shm:
         #              write the information to SHM
         # ---------------------------------------------------------
         self.buf[:self.im_offset] = minibuf # the metadata
+        
         self.set_data(data)
         self.create_keyword_list()
         self.write_keywords()
@@ -246,8 +314,9 @@ class shm:
         - newname: a string (< 80 char) with the name
         -------------------------------------------------------------- '''
         
-        self.mtdata['imname'] = newname.ljust(80, ' ')
-        self.buf[0:80]        = struct.pack('80s', self.mtdata['imname'])
+        self.mtdata['imname']  = newname.ljust(80, ' ')
+        self.mtdata['bimname'] = bytes(self.mtdata['imname'], 'ascii')
+        self.buf[0:80]        = struct.pack('80s', self.mtdata['bimname'])
 
     def close(self,):
         ''' --------------------------------------------------------------
@@ -269,22 +338,16 @@ class shm:
         ----------
         - verbose: (boolean, default: True), prints its findings
         -------------------------------------------------------------- '''
-        offset = 0
-        fmts = self.hdr_fmt.split(' ')
-        for i, fmt in enumerate(fmts):
-            hlen = struct.calcsize(fmt)
-            mdata_bit = struct.unpack(fmt, self.buf[offset:offset+hlen])
-            if i != 2:
-                self.mtdata[mtkeys[i]] = mdata_bit[0]
-            else:
-                self.mtdata[mtkeys[i]] = mdata_bit
-            if mtkeys[i] == "cnt0":
-                self.c0_offset = offset
-            offset += hlen
-
-        self.mtdata['imname'] = self.mtdata['imname'].strip('\x00')
-        self.im_offset = offset # offset for the image content
-
+        fmt = self.hdr_fmt
+        hlen = struct.calcsize(fmt)
+        temp = struct.unpack(fmt, self.buf[:hlen])
+        
+        for ii in range(len(mtkeys)):
+            self.mtdata[mtkeys[ii]] = temp[ii]
+            
+        # special repackaging: image name (string) and size (tuple)
+        self.mtdata['imname'] = self.mtdata['bimname'].decode('ascii').strip('\x00')
+        self.mtdata['size']   = self.mtdata['z'], self.mtdata['y'], self.mtdata['x']
         if verbose:
             self.print_meta_data()
 
@@ -435,18 +498,17 @@ class shm:
         elif ktype == 'N':
             kwfmt = '='+self.kwfmt0+' 16s 80s'
 
-        print kwfmt
-        print (kname, ktype, kval, kcomm) 
+        print(kwfmt)
+        print(kname, ktype, kval, kcomm) 
         self.buf[k0:k0+kwsz] = struct.pack(kwfmt, kname, ktype, kval, kcomm) 
 
     def print_meta_data(self):
         ''' --------------------------------------------------------------
         Basic printout of the content of the mtdata dictionary.
         -------------------------------------------------------------- '''
-        fmts = self.hdr_fmt.split(' ')
-        for i, fmt in enumerate(fmts):
-            print(mtkeys[i], self.mtdata[mtkeys[i]])
-
+        for ii in range(len(mtkeys)):
+            print(mtkeys[ii], self.mtdata[mtkeys[ii]])
+        
     def select_dtype(self):
         ''' --------------------------------------------------------------
         Based on the value of the 'atype' code used in SHM, determines
@@ -509,8 +571,13 @@ class shm:
 
         data = np.fromstring(self.buf[i0:i1],dtype=self.npdtype) # read img
 
+        #pdb.set_trace()
+        
         if reform:
-            rsz = self.mtdata['size'][:self.mtdata['naxis']][::-1]
+            if self.mtdata['naxis'] == 2:
+                rsz = self.mtdata['y'], self.mtdata['x']
+            else:
+                rsz = self.mtdata['z'], self.mtdata['y'], self.mtdata['x']
             data = np.reshape(data, rsz)
         return(data)
 

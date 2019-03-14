@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 
 setup(name='xaosim',
-      version='0.2',
+      version='1.0.0', # defined in the __init__ module
       description='Package for eXtreme Adaptive Optics Simulation',
       url='http://github.com/fmartinache/xaosim',
       author='Frantz Martinache',
@@ -12,7 +12,7 @@ setup(name='xaosim',
           'Development Status :: 3 - Alpha',
           'Intended Audience :: Professional Astronomers',
           'Topic :: High Angular Resolution Astronomy :: Interferometry',
-          'Programming Language :: Python :: 2.7'
+          'Programming Language :: Python :: 3.6'
       ],
       packages=['xaosim'],
       install_requires=[

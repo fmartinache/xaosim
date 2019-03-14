@@ -120,7 +120,7 @@ def hex_mirror_model(nra, nrs, step, fill=False, rot=0.0):
     return(res)
 
 # ==================================================================
-def F_test_figure((ys, xs), ww):
+def F_test_figure(ys, xs, ww):
     ''' ------------------------------------------------------------
     Returns an (ys x xs) size array with an uppercase F drawn inside
     The F letter overall size is 5x3 times the thickness of the line.
@@ -146,7 +146,7 @@ def F_test_figure((ys, xs), ww):
     return(res)
 
 # ==================================================================
-def uniform_disk((ys, xs), radius, between_pix=False):
+def uniform_disk(ys, xs, radius, between_pix=False):
     ''' ---------------------------------------------------------
     returns an (ys x xs) array with a uniform disk of radius "radius".
     ---------------------------------------------------------  '''
@@ -160,7 +160,7 @@ def uniform_disk((ys, xs), radius, between_pix=False):
     return(res)
 
 # ==================================================================
-def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0, 
+def four_spider_mask(ys, xs, pix_rad, pdiam, odiam=0.0, 
                      beta=45.0, thick=0.25, offset=0.0,
                      spiders=True, split=False, between_pix=True):
     ''' ---------------------------------------------------------
@@ -170,15 +170,15 @@ def four_spider_mask((ys, xs), pix_rad, pdiam, odiam=0.0,
 
     Parameters:
     ----------
-    - (ys, xs) : dimensions of the 2D array      (in pixels)
-    - pix_rad  : radius of the circular aperture (in pixels)
-    - pdiam    : diameter of the aperture        (in meters)
-    - odiam    : diameter of the obstruction     (in meters)
-    - beta     : angle of the spiders            (in degrees)
-    - thick    : thickness of the spiders        (in meters)
-    - offset   : spider intersect point distance (in meters)
-    - spiders  : flag to true to include spiders (boolean)
-    - split    : split the mask into four parts  (boolean)
+    - ys, xs  : dimensions of the 2D array      (in pixels)
+    - pix_rad : radius of the circular aperture (in pixels)
+    - pdiam   : diameter of the aperture        (in meters)
+    - odiam   : diameter of the obstruction     (in meters)
+    - beta    : angle of the spiders            (in degrees)
+    - thick   : thickness of the spiders        (in meters)
+    - offset  : spider intersect point distance (in meters)
+    - spiders : flag to true to include spiders (boolean)
+    - split   : split the mask into four parts  (boolean)
     --------------------------------------------------------- '''
 
     beta    = beta * dtor # converted to radians
@@ -288,7 +288,7 @@ def lwe_mode_vector(split_xyq, iQuad, iMode):
     return(vector)
         
 # ======================================================================
-def HST((xs,ys), radius, spiders=True, between_pix=True):
+def HST(xs,ys, radius, spiders=True, between_pix=True):
     ''' -------------------------------------------------------------
     Draws the Hubble Space Telescope pupil of given radius in a array
 
@@ -304,12 +304,12 @@ def HST((xs,ys), radius, spiders=True, between_pix=True):
     thick  = 0.20             # adopted spider thickness (meters)
     beta   = 45.0             # spider angle
     offset = 0.0
-    return(four_spider_mask((ys, xs), radius, pdiam, odiam, 
+    return(four_spider_mask(ys, xs, radius, pdiam, odiam, 
                             beta=beta, thick=thick, offset=offset, 
                             spiders=spiders, between_pix=between_pix))
 
 # ==================================================================
-def VLT((n,m), radius, spiders=True, between_pix=True):
+def VLT(n,m, radius, spiders=True, between_pix=True):
     ''' ---------------------------------------------------------
     returns an array that draws the pupil of the VLT
     at the center of an array of size (n,m) with radius "radius".
@@ -328,7 +328,7 @@ def VLT((n,m), radius, spiders=True, between_pix=True):
     offset = 1.11              # spider intersection offset (meters)
     beta   = 50.5              # spider angle beta
 
-    return(four_spider_mask((m, n), radius, pdiam, odiam, 
+    return(four_spider_mask(m, n, radius, pdiam, odiam, 
                             beta, thick, offset, spiders=spiders,
                             between_pix=between_pix))
 
@@ -354,7 +354,7 @@ def keck(sz, spiders=True, between_pix=True):
     return(tmp)
 
 # ==================================================================
-def subaru((n,m), radius, spiders=True, between_pix=True):
+def subaru(n,m, radius, spiders=True, between_pix=True):
     ''' ---------------------------------------------------------
     returns an array that draws the pupil of the Subaru Telescope
     at the center of an array of size (n,m) with radius "radius".
@@ -371,13 +371,13 @@ def subaru((n,m), radius, spiders=True, between_pix=True):
     offset = 1.278            # spider intersection offset (meters)
     beta   = 51.75            # spider angle beta
 
-    return(four_spider_mask((m, n), radius, pdiam, odiam=odiam, 
+    return(four_spider_mask(m, n, radius, pdiam, odiam=odiam, 
                             beta=beta, thick=thick, offset=offset,
                             spiders=spiders,
                             between_pix=between_pix))
 
 # ==================================================================
-def subaru_dbl_asym((xs, ys), radius, spiders=True, PA1=0.0, PA2=90.0,
+def subaru_dbl_asym(xs, ys, radius, spiders=True, PA1=0.0, PA2=90.0,
                     thick1=0.15, thick2=0.15):
     ''' -------------------------------------------------------------
     Returns a pupil mask with *two* asymmetric arms for two distinct
@@ -394,21 +394,21 @@ def subaru_dbl_asym((xs, ys), radius, spiders=True, PA1=0.0, PA2=90.0,
     - thick1   : asymm. arm #1 thickness (% of aperture diameter)
     - thick2   : asymm. arm #2 thickness (% of aperture diameter)
     ------------------------------------------------------------- '''
-    a = subaru_asym((xs, ys), radius, spiders=spiders, PA=PA1, thick=thick1)
-    b = subaru_asym((xs, ys), radius, spiders=spiders, PA=PA2, thick=thick2)
+    a = subaru_asym(xs, ys, radius, spiders=spiders, PA=PA1, thick=thick1)
+    b = subaru_asym(xs, ys, radius, spiders=spiders, PA=PA2, thick=thick2)
     return(a*b)
 
 # ==================================================================
-def radial_arm((xs,ys), radius, PA=0.0, thick=0.15):
+def radial_arm(xs,ys, radius, PA=0.0, thick=0.15):
     ''' -------------------------------------------------------------
     Produces a pupil mask for an occulting radial arm for a given
     position angle and thickness.
 
     Parameters:
-    - (xs, ys) : dimensions of the 2D array   (integer # of pixels)
-    - radius   : outer radius of the aperture (integer # of pixels)
-    - PA       : position angle of the arm    (degrees)
-    - thick    : fraction of the ap. diameter (float)
+    - xs, ys : dimensions of the 2D array   (integer # of pixels)
+    - radius : outer radius of the aperture (integer # of pixels)
+    - PA     : position angle of the arm    (degrees)
+    - thick  : fraction of the ap. diameter (float)
     ------------------------------------------------------------- '''
     res = np.ones((ys, xs))
     ang = np.mod(PA, 360.0)
@@ -419,7 +419,7 @@ def radial_arm((xs,ys), radius, PA=0.0, thick=0.15):
     return(res.astype('int'))
 
 # ==================================================================
-def subaru_asym((xs, ys), radius, spiders=True, PA=0.0, thick=0.15):
+def subaru_asym(xs, ys, radius, spiders=True, PA=0.0, thick=0.15):
     ''' -------------------------------------------------------------
     Returns a pupil mask with an asymmetric arm that mostly follows
     the geometry of the original APF-WFS.
@@ -427,11 +427,11 @@ def subaru_asym((xs, ys), radius, spiders=True, PA=0.0, thick=0.15):
     Parameters:
     ----------
 
-    - (xs, ys) : dimensions of the 2D array
-    - radius   : outer radius of the aperture
-    - spiders  : boolean (w or without spiders)
-    - PA       : position angle of the arm (in degrees)
-    - thick    : asymm. arm thickness (% of aperture diameter)
+    - xs, ys  : dimensions of the 2D array
+    - radius  : outer radius of the aperture
+    - spiders : boolean (w or without spiders)
+    - PA      : position angle of the arm (in degrees)
+    - thick   : asymm. arm thickness (% of aperture diameter)
     ------------------------------------------------------------- '''
 
     #th = np.mod(PA, 360.0) * dtor # convert PA into radians
@@ -527,7 +527,7 @@ def lwe_mode_bank_2D(sz, odiam=8.0, beta=51.75, offset=1.28):
     - beta: spider angle              (default 51.75, in degrees)
     - offset: spider intersect offset (default: 1.28, in meters)
     ------------------------------------------------------------- '''
-    quads = four_spider_mask((sz, sz), sz/2, odiam, 0.0,
+    quads = four_spider_mask(sz, sz, sz/2, odiam, 0.0,
                              beta=beta, thick=0.0, offset=offset,
                              spiders=True, split=True)
     xx, yy = np.meshgrid(np.arange(sz)-sz/2, np.arange(sz)-sz/2)

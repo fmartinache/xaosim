@@ -60,11 +60,14 @@
 
       ---------------------------------------------------------------------- '''
 
-from instrument import *
+from .instrument import *
 import numpy as np
 from numpy.fft import fftshift as shift
 from numpy.fft import fft2 as fft
 from numpy.fft import ifft2 as ifft
+
+version_info = (1,0,0)
+__version__ = '.'.join(str(c) for c in version_info)
 
 def img_coordinates(xsz, ysz):
     """ ------------------------------------------------------------------------

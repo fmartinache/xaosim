@@ -48,7 +48,7 @@ class shm(shm0):
 
         for ii in range(self.nsem):
             semf = "%s_sem%02d" % (myname, ii)
-            exec 'self.sem%02d = ipc.Semaphore(semf, ipc.O_RDWR | ipc.O_CREAT)' % (ii,)
+            exec('self.sem%02d = ipc.Semaphore(semf, ipc.O_RDWR | ipc.O_CREAT)' % (ii,))
             test = ipc.Semaphore("%s_semlog" % (myname,), ipc.O_RDWR | ipc.O_CREAT)
         self.nosem = False
 
@@ -62,7 +62,7 @@ class shm(shm0):
         if self.nosem is False:
             for ii in range(10):
                 semf = "%s_sem%02d" % (self.mtdata['imname'], ii)
-                exec 'self.sem%02d.release()' % (ii,)
+                exec('self.sem%02d.release()' % (ii,))
         else:
             print("skip sem post this first time")
     # =====================================================================
@@ -71,7 +71,7 @@ class shm(shm0):
         #if self.nosem is False:
         for ii in range(self.nsem):
             semf = "%s_sem%02d" % (self.mtdata['imname'], ii)
-            exec 'self.sem%02d.close()' % (ii,)
+            exec('self.sem%02d.close()' % (ii,))
 
     # =====================================================================
     def get_expt(self,):

@@ -7,7 +7,7 @@ Example:
 
 >> import pupil
 >> import sft
->> a = pupil.uniform_disk((200,200), 100)
+>> a = pupil.uniform_disk(200,200, 100)
 >> ca_focal = sft.sft(a, 50, 20)
 
 Will compute the complex amplitude in the focal plane for a pupil
