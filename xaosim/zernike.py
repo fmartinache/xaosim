@@ -8,8 +8,12 @@ shift = np.fft.fftshift
 #   equivalent of the IDL dist function
 # ----------------------------------------
 def dist(n,m):
-    x,y = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
-    return(np.hypot(y,x))
+    xx,yy = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
+    if (n % 2 == 0):
+        xx += 0.5
+    if (m % 2 == 0):
+        yy += 0.5
+    return(np.hypot(yy,xx))
 
 # ---------------------------------------------------------
 # Returns the azimuth in radians of points in an array of 
@@ -17,6 +21,10 @@ def dist(n,m):
 # ---------------------------------------------------------
 def azim(n, m):
     xx,yy = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
+    if (n % 2 == 0):
+        xx += 0.5
+    if (m % 2 == 0):
+        yy += 0.5
     return np.arctan2(xx,yy)
 
 # ------------------------------------------------
@@ -26,7 +34,7 @@ def azim(n, m):
 def zer_coeff(n,m):
     coeffs, pows = [], []
 
-    for s in range((n-m)/2+1):
+    for s in range((n-m)//2+1):
         coeffs.append((-1.0)**s * fac(n-s) / \
                           (fac(s) * fac((n+m)/2.0 - s) * fac((n-m)/2.0 - s))) 
         pows.append(n-2.0*s)
