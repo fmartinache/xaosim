@@ -273,7 +273,7 @@ def lwe_mode_vector(split_xyq, iQuad, iMode):
     nq = split_xyq.shape[0]
 
     vector = np.array([])
-    for iq in xrange(nq):
+    for iq in range(nq):
         if iq != iQuad:
             vector = np.append(vector, np.zeros(split_xyq[iq,0].size))
         else:
@@ -492,10 +492,10 @@ def golay9(sz, prad, hrad, between_pix=True, rot=0.0):
     ys = np.array([])
 
     pup = np.zeros((sz,sz))
-    for i in xrange(3):
+    for i in range(3):
         theta = 2.0 * i * np.pi / 3.0 + rot
 
-        for k in xrange(2,4):
+        for k in range(2,4):
             xs = np.append(xs, k * dstep * np.cos(theta))
             ys = np.append(ys, k * dstep * np.sin(theta))
 
@@ -504,8 +504,9 @@ def golay9(sz, prad, hrad, between_pix=True, rot=0.0):
 
     xs = np.cast['int'](np.round(xs))
     ys = np.cast['int'](np.round(ys))
-        
-    for i in xrange(xs.size):
+
+    for i in range(xs.size):
+        print("%+4d, %+4d" % (xs[i], ys[i]))
         pup = np.roll(np.roll(pup, -ys[i], 0), -xs[i], 1)
         pup[mydist < hrad] = 1.0
         pup = np.roll(np.roll(pup,  ys[i], 0),  xs[i], 1)
@@ -534,7 +535,7 @@ def lwe_mode_bank_2D(sz, odiam=8.0, beta=51.75, offset=1.28):
     
     nm = 12
     bank = np.zeros((nm, sz, sz))
-    for ii in xrange(nm):
+    for ii in range(nm):
         if ((ii % 3) == 0):
             bank[ii] = 1.0 * quads[ii / 3]
         elif ((ii % 3) == 1):
