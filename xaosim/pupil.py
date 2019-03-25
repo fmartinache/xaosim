@@ -466,6 +466,35 @@ def segmented_aperture(sz, nr, srad, rot=0.0):
     return(pup)
 
 # ======================================================================
+def golay9_coords(prad, rot=0.0):
+    ''' -------------------------------------------------------------
+    Returns the holes coordinates of a 9-hole Golay array
+
+    Parameters:
+    ----------
+    - prad: the radius of the circular aperture to be masked
+    - rot: mask azimuth (in radians)
+    ------------------------------------------------------------- '''
+    dstep = prad / 3.5 # why exactly 3.5 here?
+    d1    = dstep*np.sqrt(7)
+    th0   = np.arctan(np.sqrt(3)/2)
+
+    xs = np.array([])
+    ys = np.array([])
+    
+    for i in range(3):
+        theta = 2.0 * i * np.pi / 3.0 + rot
+        
+        for k in range(2,4):
+            xs = np.append(xs, k * dstep * np.cos(theta))
+            ys = np.append(ys, k * dstep * np.sin(theta))
+
+        xs = np.append(xs,  d1 * np.cos(theta - th0))
+        ys = np.append(ys,  d1 * np.sin(theta - th0))
+
+    return np.array([xs, ys]).T
+
+# ======================================================================
 def golay9(sz, prad, hrad, between_pix=True, rot=0.0):
     ''' -------------------------------------------------------------
     Returns a square "sz x sz" NR Golay 9 pupil model
@@ -482,36 +511,42 @@ def golay9(sz, prad, hrad, between_pix=True, rot=0.0):
     if between_pix is True:
         off = 0.5
     xx,yy  = np.meshgrid(np.arange(sz)-sz/2+off, np.arange(sz)-sz/2+off)
-        
     mydist = np.hypot(yy,xx)
-    dstep  = prad / 3.5
-    d1     = dstep*np.sqrt(7)
-    th0    = np.arctan(np.sqrt(3)/2)
+    pup    = np.zeros((sz,sz))
 
-    xs = np.array([])
-    ys = np.array([])
-
-    pup = np.zeros((sz,sz))
-    for i in range(3):
-        theta = 2.0 * i * np.pi / 3.0 + rot
-
-        for k in range(2,4):
-            xs = np.append(xs, k * dstep * np.cos(theta))
-            ys = np.append(ys, k * dstep * np.sin(theta))
-
-        xs = np.append(xs,  d1 * np.cos(theta - th0))
-        ys = np.append(ys,  d1 * np.sin(theta - th0))
-
-    xs = np.cast['int'](np.round(xs))
-    ys = np.cast['int'](np.round(ys))
-
+    coords = golay9_coords(prad, rot)
+    xs = np.cast['int'](np.round(coords[:,0]))
+    ys = np.cast['int'](np.round(coords[:,1]))
+    
     for i in range(xs.size):
-        print("%+4d, %+4d" % (xs[i], ys[i]))
         pup = np.roll(np.roll(pup, -ys[i], 0), -xs[i], 1)
         pup[mydist < hrad] = 1.0
         pup = np.roll(np.roll(pup,  ys[i], 0),  xs[i], 1)
 
     return(pup)
+
+# ======================================================================
+def piston_map(sz, coords, hrad, between_pix=True, piston=None):
+    off = 0
+    if between_pix is True:
+        off = 0.5
+    xx,yy  = np.meshgrid(np.arange(sz)-sz/2+off, np.arange(sz)-sz/2+off)
+    mydist = np.hypot(yy,xx)
+    pmap   = np.zeros((sz,sz))
+
+    p0 = np.zeros(coords.shape[0])
+    if piston is not None:
+        p0 = piston
+    else:
+        p0 = np.random.randn(coords.shape[0])
+        
+    xs = coords[:,0]
+    ys = coords[:,1]
+    for i in range(xs.size):
+        pmap = np.roll(np.roll(pmap, -ys[i], 0), -xs[i], 1)
+        pmap[mydist < hrad] = p0[i]
+        pmap = np.roll(np.roll(pmap,  ys[i], 0),  xs[i], 1)
+    return pmap
 
 # ======================================================================
 def lwe_mode_bank_2D(sz, odiam=8.0, beta=51.75, offset=1.28):
