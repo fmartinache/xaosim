@@ -146,7 +146,7 @@ class instrument(object):
         cmd_args = ""
         
         if self.DM is not None:
-            self.DM.update(verbose=True)
+            self.DM.update(verbose=False)
             cmd_args += "dmmap = self.DM.dmd,"
 
         if self.atmo is not None:
