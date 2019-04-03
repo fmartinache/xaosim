@@ -635,7 +635,7 @@ class cam(object):
         mu2phase = 4.0 * np.pi / self.wl / 1e6 # convert microns to phase
         nm2phase = 2.0 * np.pi / self.wl / 1e9 # convert microns to phase
 
-        phs = np.zeros((self.sz, self.sz), dtype=np.float128)  # full phase map
+        phs = np.zeros((self.sz, self.sz), dtype=np.float64)  # full phase map
 
         if dmmap is not None: # a DM map was provided
             dms = dmmap.shape[0]

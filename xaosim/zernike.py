@@ -109,7 +109,7 @@ def zer_mode_bank_2D(sz, i0, i1):
     ------------------------------------------ '''
     dZ = i1 - i0 + 1
     res = np.zeros((dZ, sz, sz))
-    for i in xrange(i0, i1+1):
+    for i in range(i0, i1+1):
         res[i-i0] = mkzer1(i, sz, sz/2, True)
     return(res)
     

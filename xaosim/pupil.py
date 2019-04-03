@@ -434,13 +434,8 @@ def subaru_asym(xs, ys, radius, spiders=True, PA=0.0, thick=0.15):
     - thick   : asymm. arm thickness (% of aperture diameter)
     ------------------------------------------------------------- '''
 
-    #th = np.mod(PA, 360.0) * dtor # convert PA into radians
-    #th0 = np.mod(th, np.pi)
-    #xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
-    #h = thick * radius / np.abs(np.cos(th0))
-
-    pup = subaru((xs,ys), radius, spiders)
-    arm = radial_arm((xs,ys), radius, PA=PA, thick=thick)
+    pup = subaru(xs,ys, radius, spiders)
+    arm = radial_arm(xs,ys, radius, PA=PA, thick=thick)
 
     return(pup * arm)
 
@@ -456,7 +451,7 @@ def segmented_aperture(sz, nr, srad, rot=0.0):
     - srad : the radius of a segment (in pixels)
     - rot  : a rotation angle (in radians)
     ---------------------------------------------------------------- '''
-    xy = hex_mirror_model(nr+1, srad, srad, rot=rot).astype(np.int)+sz/2
+    xy = hex_mirror_model(nr+1, srad, srad, rot=rot).astype(np.int)+sz//2
     pup = np.zeros((sz,sz))
     for i in range(xy.shape[1]):
         try:
@@ -572,13 +567,13 @@ def lwe_mode_bank_2D(sz, odiam=8.0, beta=51.75, offset=1.28):
     bank = np.zeros((nm, sz, sz))
     for ii in range(nm):
         if ((ii % 3) == 0):
-            bank[ii] = 1.0 * quads[ii / 3]
+            bank[ii] = 1.0 * quads[ii // 3]
         elif ((ii % 3) == 1):
-            temp = xx - xx[quads[ii / 3]].mean()
-            bank[ii] = temp * quads[ii / 3]
+            temp = xx - xx[quads[ii // 3]].mean()
+            bank[ii] = temp * quads[ii // 3]
         elif ((ii % 3) == 2):
-            temp = yy - yy[quads[ii / 3]].mean()
-            bank[ii] = temp * quads[ii / 3]
+            temp = yy - yy[quads[ii // 3]].mean()
+            bank[ii] = temp * quads[ii // 3]
         bank[ii] /= bank[ii].std()
     return(bank)
 
