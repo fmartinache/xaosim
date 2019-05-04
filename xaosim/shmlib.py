@@ -82,46 +82,7 @@ hdr_fmt_pck = '<80s B   I I I Q B   d d q q B B B   H Q Q Q B   H'   # packed
 hdr_fmt_aln = '80s B3x I I I Q B7x d d q q B B B1x H2x Q Q Q B1x H4x' # aligned
 
 
-'''
-   B(1)            I(4)             I(4)             I(4)                             Q(8) B(1)
-b'\x02 \x00\x00\x01   @ \x00\x00\x01\x00 \x00\x00\x00\x00 \x00\x00\x00\x00\x00\x01  @ \x00 \n  \x00\x00\x00\x00\x00\x00\x00 \x00'
-    80   81  82  83   84  85  86  87  88   89  90  91  92  93  94  95  96  97  98 99  100 101  102 103 104 105 106 107  108 109
-
-self.buf[130:163]
-
-                  B(1)B(1)B(1)    H(2)                            Q(8)
-b'\x00\x00\x00\x00\x01\x02\x03\x00\x05\x01\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03'
-   130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159 160 161 162
-'''
-
 ''' 
----------------------------------------------------------
-Table taken from Python 2 documentation, section 7.3.2.2.
----------------------------------------------------------
-
-|--------+--------------------+----------------+----------|
-| Format | C Type             | Python type    | Std size |
-|--------+--------------------+----------------+----------|
-| x      | pad byte           | no value       |          |
-| c      | char               | string (len=1) |        1 |
-| b      | signed char        | integer        |        1 |
-| B      | unsigned char      | integer        |        1 |
-| ?      | _Bool              | bool           |        1 |
-| h      | short              | integer        |        2 |
-| H      | unsigned short     | integer        |        2 |
-| i      | int                | integer        |        4 |
-| I      | unsigned int       | integer        |        4 |
-| l      | long               | integer        |        4 |
-| L      | unsigned long      | integer        |        4 |
-| q      | long long          | integer        |        8 |
-| Q      | unsigned long long | integer        |        8 |
-| f      | float              | float          |        4 |
-| d      | double             | float          |        8 |
-| s      | char[]             | string         |          |
-| p      | char[]             | string         |          |
-| P      | void *             | integer        |          |
-|--------+--------------------+----------------+----------| 
-
 
 ---------------------------------------------------------
 Table taken from Python 3 documentation, section 7.1.2.2.
@@ -413,11 +374,17 @@ class shm:
         # ------------------------------------------
         #    fill in the dictionary of keywords
         # ------------------------------------------
-        self.kwds[ii]['name']    = str(kname).strip('\x00')
-        self.kwds[ii]['type']    = ktype
-        self.kwds[ii]['value']   = kval
-        self.kwds[ii]['comment'] = str(kcomm).strip('\x00')
-
+        if (ktype == 'L'):
+            self.kwds[ii]['value'] = np.long(kval)
+        elif (ktype == 'D'):
+            self.kwds[ii]['value'] = np.double(kval)
+        else:
+            self.kwds[ii]['value'] = ktype.decode('ascii').strip('\x00')
+            
+        self.kwds[ii]['name']    = kname.decode('ascii').strip('\x00')
+        self.kwds[ii]['type']    = ktype.decode('ascii')
+        self.kwds[ii]['comment'] = kcomm.decode('ascii').strip('\x00')
+        
     def update_keyword(self, ii, name, value, comment):
         ''' --------------------------------------------------------------
         Update keyword data in dictionary and writes it to SHM file
@@ -440,9 +407,9 @@ class shm:
         except:
             print('Keyword name not compatible (< 16 char)')
 
-        if isinstance(value, (long, int)):
+        if isinstance(value, int):
             self.kwds[ii]['type'] = 'L'
-            self.kwds[ii]['value'] = long(value)
+            self.kwds[ii]['value'] = np.long(value)
             
         elif isinstance(value, float):
             self.kwds[ii]['type'] = 'D'
@@ -491,16 +458,24 @@ class shm:
 
         if ktype == 'L':
             kwfmt = '='+self.kwfmt0+' q 8x 80s'
+            tmp = (bytes(kname, "ascii"),
+                   bytes(ktype, "ascii"),
+                   kval,
+                   bytes(kcomm, "ascii"))
         elif ktype == 'D':
             kwfmt = '='+self.kwfmt0+' d 8x 80s'
-        elif ktype == 'S':
+            tmp = (bytes(kname, "ascii"),
+                   bytes(ktype, "ascii"),
+                   kval,
+                   bytes(kcomm, "ascii"))
+        else: # 'S' or 'N'
             kwfmt = '='+self.kwfmt0+' 16s 80s'
-        elif ktype == 'N':
-            kwfmt = '='+self.kwfmt0+' 16s 80s'
+            tmp = (bytes(kname, "ascii"),
+                   bytes(ktype, "ascii"),
+                   bytes(kval, "ascii"),
+                   bytes(kcomm, "ascii"))
 
-        print(kwfmt)
-        print(kname, ktype, kval, kcomm) 
-        self.buf[k0:k0+kwsz] = struct.pack(kwfmt, kname, ktype, kval, kcomm) 
+        self.buf[k0:k0+kwsz] = struct.pack(kwfmt,  *tmp) 
 
     def print_meta_data(self):
         ''' --------------------------------------------------------------

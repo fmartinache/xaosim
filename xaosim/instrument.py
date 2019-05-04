@@ -63,11 +63,21 @@ class instrument(object):
             print("Creating %s" % (self.name,))
             arr_size = 512
             dms = 50
-            self.DM  = DM(self.name, dms, 8, shdir=shdir)
-            self.cam = cam(self.name, arr_size, 320,256,
+            self.cam = cam(self.name, arr_size, 320, 256,
                            16.7, 1.6e-6, shdir=shdir)
+            self.DM  = DM(self.name, dms, 8, shdir=shdir)
             self.atmo = phscreen(self.name, arr_size, self.cam.ld0,
                                  dms, 1500.0, shdir=shdir)
+
+        elif self.name == "KERNEL":
+            csize = 512
+            na0 = 13.0
+            self.cam = cam(self.name, csize, 320, 256,
+                           16.7, 1.6e-6, shdir=shdir)
+            self.DM = HexDM(self.name, nr=7, nch=4, csz=csize,
+                            ld0=self.cam.ld0, na0=na0)
+            self.atmo = phscreen(self.name, csize, self.cam.ld0,
+                                 na0, 500.0, shdir=shdir)
 
         elif self.name == "CIAO":
             arr_size = 128
@@ -147,7 +157,7 @@ class instrument(object):
         
         if self.DM is not None:
             self.DM.update(verbose=False)
-            cmd_args += "dmmap = self.DM.dmd,"
+            cmd_args += "dmmap = self.DM.wft.get_data(),"
 
         if self.atmo is not None:
             cmd_args += 'phscreen = self.atmo.shm_phs.get_data()'
@@ -189,14 +199,19 @@ class instrument(object):
             
         if self.atmo is not None:
             self.atmo.start(delay)
-        
-        if (self.name == "SCExAO"):
-            self.cam.start(delay,
-                           self.shdir+"dmdisp.im.shm",
-                           self.shdir+"phscreen.im.shm")
 
         if  (self.name == "CIAO"):
             self.cam.start(delay, self.shdir+"dmdisp.im.shm")
+
+        if  (self.name == "SCExAO"):
+            self.cam.start(delay,
+                           self.shdir+"dmdisp.wf.shm",
+                           self.shdir+"phscreen.im.shm")
+
+        if  (self.name == "KERNEL"):
+            self.cam.start(delay,
+                           self.shdir+"hex_disp.wf.shm",
+                           self.shdir+"phscreen.im.shm")
 
     # ==================================================
     def stop(self,):
@@ -638,20 +653,13 @@ class cam(object):
         phs = np.zeros((self.sz, self.sz), dtype=np.float64)  # full phase map
 
         if dmmap is not None: # a DM map was provided
-            dms = dmmap.shape[0]
-            zoom = self.prad0 / (dms/2.0) # scaling factor for DM 2 WF array
-            rwf = int(np.round(zoom*dms)) # resized wavefront
-        
-            x0 = (self.sz-rwf)//2
-            x1 = x0 + rwf
-
-            phs0 = Image.fromarray(mu2phase * dmmap)   # phase map
-            phs1 = phs0.resize((rwf, rwf), resample=1) # resampled phase map
-            phs[x0:x1,x0:x1] = phs1
-
+            phs = mu2phase * dmmap
 
         if phscreen is not None: # a phase screen was provided
-            phs[x0:x1,x0:x1] += phscreen * nm2phase
+            wfsz = int(2 * self.prad0)
+            x0 = (self.sz - wfsz) // 2
+            x1 = x0 + wfsz
+            phs[x0:x1,x0:x1] += nm2phase * phscreen
 
         if self.corono:
             wf = 0+1j*phs
@@ -737,6 +745,8 @@ class cam(object):
         dm_map  = None # arrays that store current phase
         atm_map = None # screens, if they exist
 
+        #self.dmtype = self.DM.dmtype
+        
         # 1. read the shared memory data structures if present
         # ----------------------------------------------------
         if dm_shm is not None:
@@ -839,11 +849,8 @@ class SHcam(cam):
         - dmmap   : (optional) a deformable mirror displacement map
         ------------------------------------------------------------------- '''
 
-        # mu2phase: DM displacement in microns to radians (x2 reflection)
-        # nm2phase: phase screen in nm to radians (no x2 factor)
-
-        mu2phase = 4.0 * np.pi / self.wl / 1e6 # convert microns to phase
-        nm2phase = 2.0 * np.pi / self.wl / 1e9 # convert microns to phase
+        mu2phase = 4.0 * np.pi / self.wl / 1e6 # microns to phase (x2)
+        nm2phase = 2.0 * np.pi / self.wl / 1e9 # nanometers to phase
 
         mls = self.mls
         cdiam = self.cdiam
@@ -855,8 +862,7 @@ class SHcam(cam):
         # -------------------------------------------------------------------
         if dmmap is not None: # a DM map was provided
             dms = dmmap.shape[0]
-            #zoom = self.prad0 / (dms/2.0) # scaling factor for DM 2 WF array
-            rwf = self.sz#int(np.round(zoom*dms)) # resized wavefront
+            rwf = self.sz
         
             x0 = (self.sz-rwf)//2
             x1 = x0 + rwf
@@ -869,7 +875,6 @@ class SHcam(cam):
             phs[x0:x1,x0:x1] = phs1
 
         # -------------------------------------------------------------------
-        #pdb.set_trace()
         if phscreen is not None: # a phase screen was provided
             phs[x0:x1,x0:x1] += phscreen * nm2phase
 
@@ -881,15 +886,14 @@ class SHcam(cam):
 
         for i in range(mls * mls): # cycle ove rthe u-lenses
             wfs = np.zeros((2*rcdiam, 2*rcdiam), dtype=complex)
-            li, lj = i / mls, i % mls # i,j indices for the u-lens
+            li, lj   = i / mls, i % mls # i,j indices for the u-lens
             pi0, pj0 = int(np.round(li * cdiam)), int(np.round(lj * cdiam))
-
-            wfs[xl0:xl0+rcdiam, xl0:xl0+rcdiam] = wf[pi0:pi0+rcdiam, pj0:pj0+rcdiam]
-
+            wfs[xl0:xl0+rcdiam, xl0:xl0+rcdiam] = wf[pi0:pi0+rcdiam,
+                                                     pj0:pj0+rcdiam]
             # compute the image by the u-lens
             iml = shift(np.abs(fft(shift(wfs)))**2)
-            
-            frm[pi0:pi0+rcdiam, pj0:pj0+rcdiam] = iml[xl0:xl0+rcdiam, xl0:xl0+rcdiam]
+            frm[pi0:pi0+rcdiam, pj0:pj0+rcdiam] = iml[xl0:xl0+rcdiam,
+                                                      xl0:xl0+rcdiam]
 
         # -------------------------------------------------------------------
         temp0 = Image.fromarray(frm)
@@ -900,12 +904,11 @@ class SHcam(cam):
         if frm.sum() > 0:
             frm *= self.signal / frm.sum()
 
-        if self.phot_noise: # need to be recast to fit original format
-            frm = np.random.poisson(lam=frm,
-                                    size=None).astype(self.shm_cam.npdtype)
+        if self.phot_noise: # poisson + recast
+            tmp = np.random.poisson(lam=frm, size=None)
+            frm = tmp.astype(self.shm_cam.npdtype)
 
         self.shm_cam.set_data(frm) # push the image to shared memory
-
 
 # ===========================================================
 # ===========================================================
@@ -919,7 +922,8 @@ class DM(object):
 
     # ==================================================
     def __init__(self, instrument="SCExAO", dms=50, nch=8, 
-                 shm_root="dmdisp", shdir="/dev/shm/"):
+                 shm_root="dmdisp", shdir="/dev/shm/",
+                 csz=512, ld0=2.5, na0=50.0, dx=0.0, dy=0.0):
         ''' -----------------------------------------
         Constructor for instance of deformable mirror
         Parameters:
@@ -928,15 +932,26 @@ class DM(object):
         - dms: an integer (linear size of the DM)
         - nch: number of channels
         - shm_root: the root name for shared mem files
+        - shdir: directory where shared mem files will be
+
+        Additions:
+        ---------
+        - csz: array size for computations
+        - ld0: camera lambda/D in pixels
+        - na0: number of actuators across 
+        - dx: DM L/R misalignment (in actuators)
+        - dy: DM U/D misalignment (in actuators)
         ----------------------------------------- '''
         self.keepgoing = False
-        self.dms = dms # deformable mirror size of (dms x dms) actuators
+        self.dms = dms # DM size of (dms x dms) actuators
         self.nch = nch # numbers of channels to drive the DM
-        self.dmd0 = np.zeros((dms, dms), dtype=np.float32)
+        self.dmtype = "square" # square grid of actuators
+        self.dmd0   = np.zeros((dms, dms), dtype=np.float32)
+        self.dmd    = self.dmd0.copy()
         self.shm_cntr = np.zeros(nch) - 1
         self.disp = shm(fname='%s%s.im.shm' % (shdir, shm_root), 
                         data=self.dmd0, verbose=False)
-
+        
         for i in range(nch):
             exec('''self.disp%d = shm(fname='%s%s%d.im.shm', 
             data=self.dmd0, verbose=False)''' % (i,shdir, shm_root,i))
@@ -945,6 +960,17 @@ class DM(object):
             self.volt = shm("%sdmvolt.im.shm" % (shdir,), 
                             data=self.dmd0, verbose=False)
 
+        # additional shared memory data structure for the wavefront
+        self.wft = shm(fname='%s%s.wf.shm' % (shdir, shm_root), 
+                       data=np.zeros((csz,csz)), verbose=False)
+        
+        self.dx = dx
+        self.dy = dy
+        self.na0 = na0
+        self.csz = csz
+        self.astep = csz/ld0/na0
+        self.shm_root = shm_root
+        
     # ==================================================
     def get_counter_channel(self, chn):
         ''' ----------------------------------------
@@ -954,8 +980,8 @@ class DM(object):
         ---------------------------------------- '''
         cnt = 0
         if chn < self.nch:
-            exec("cnt = self.disp%d.get_counter()" % (chn,))
-        else:# chn == nch:
+            cnt = eval("self.disp%d.get_counter()" % (chn,))
+        else:
             cnt = self.disp.get_counter()
         return(cnt)
 
@@ -999,6 +1025,7 @@ class DM(object):
             exec("combi += self.disp%d.get_data()" % (i,))
         self.dmd = combi
         self.disp.set_data(combi)
+        self.wft.set_data(self.map2D(self.csz, self.astep))
         if verbose:
             print("DM shape updated!")
         
@@ -1023,3 +1050,131 @@ class DM(object):
                 self.update()
             time.sleep(delay)
 
+    # ==================================================
+    def map2D(self, msz, astep):
+        ''' -----------------------------------------
+        Returns a 2D displacement map of the DM.
+        assuming a square grid of actuators
+
+        Parameters:
+        ----------
+        - msz  : the size of the map (in pixels)
+        - astep: actuator grid size (in pixels)
+        ----------------------------------------- '''
+        dmmap = np.zeros((msz, msz), dtype=np.float64)
+        dms = self.dms
+
+        rwf = int(np.round(astep*dms)) # resized wavefront
+        x0 = (self.csz-rwf) // 2
+        x1 = x0 + rwf
+
+        map0 = Image.fromarray(self.dmd)
+        map1 = map0.resize((rwf, rwf), resample=1)
+
+        dmmap[x0:x1,x0:x1] = map1
+        # xx,yy = np.meshgrid(np.arange(msz)- msz/2 + 0.5,
+        #                     np.arange(msz)- msz/2 + 0.5)
+
+        # xc, yc = np.meshgrid(np.arange(dms)-dms/2,
+        #                      np.arange(dms)-dms/2)
+        
+        # xy = np.array([xc.flatten(), yc.flatten()])
+        # xy[0] += self.dx * astep # optional offset of
+        # xy[1] += self.dy * astep # the DM position
+        # xy = np.round(xy).astype(np.int)
+        
+        # seg = pupil.uniform_rect(msz, msz, astep, astep)
+
+
+        # for ii in range(dms**2):
+        #     d1 = self.dmd.flatten()[ii]
+        #     dmmap += d1 * np.roll(np.roll(seg, xy[0,ii], axis=0), xy[1,ii], axis=1)
+
+        
+        return dmmap
+
+# ===========================================================
+# ===========================================================
+
+class HexDM(DM):
+    ''' -------------------------------------------------------------------
+    Hexagonal Segmented Deformable mirror class
+
+    ------------------------------------------------------------------- '''
+
+    # ==================================================
+    def __init__(self, instrument="KERNEL", nr=1, nch=8, 
+                 shm_root="hex_disp", shdir="/dev/shm/",
+                 csz=512, ld0=2.5, na0=50.0, dx=0.0, dy=0.0):
+        ''' -----------------------------------------
+        Constructor for instance of deformable mirror
+        Parameters:
+        ----------
+        - instrument : a string
+        - dms: an integer (linear size of the DM)
+        - nch: number of channels
+        - shm_root: the root name for shared mem files
+
+        Additions:
+        ---------
+        - csz: array size for computations
+        - ld0: camera lambda/D in pixels
+        - na0: number of actuators across pupil diam
+        - dx: DM L/R misalignment (in actuators)
+        - dy: DM U/D misalignment (in actuators)
+        ----------------------------------------- '''
+        self.keepgoing = False
+        self.dmtype = "hex"
+        self.nr = nr            # DM number of rings
+        self.ns = 1+3*nr*(nr+1) # DM number of segments
+        self.nch = nch          # numbers of DM channels
+        self.dmd0 = np.zeros((self.ns, 3), dtype=np.float32)
+        self.shm_cntr = np.zeros(nch) - 1
+        self.disp = shm(fname='%s%s.im.shm' % (shdir, shm_root), 
+                        data=self.dmd0, verbose=False, nbkw=1)
+
+        # share dmtype with instrument via keywords
+        self.disp.update_keyword(0, "dmtype", self.dmtype,
+                                 "geometry of the Deformable Mirror")
+
+        for ii in range(nch):
+            exec('''self.disp%d = shm(fname='%s%s%d.im.shm', 
+            data=self.dmd0, verbose=False)''' % (ii,shdir, shm_root,ii))
+            
+        # additional shared memory data structure for the wavefront
+        self.wft = shm(fname='%s%s.wf.shm' % (shdir, shm_root), 
+                       data=np.zeros((csz,csz)), verbose=False)
+        self.dx = dx
+        self.dy = dy
+        self.na0 = na0
+        self.csz = csz
+        self.astep = csz/ld0/na0
+        self.shm_root = shm_root
+
+    # ==================================================
+    def map2D(self, msz, astep):
+        ''' -----------------------------------------
+        Returns a 2D displacement map of the DM.
+
+        Parameters:
+        ----------
+        - msz:  the size of the map (in pixels)
+        - arad: actuator radius (in pixels)
+        ----------------------------------------- '''
+        nr    = self.nr
+        arad  = astep/np.sqrt(3)
+        dmmap = np.zeros((msz, msz), dtype=np.float64)
+        xx,yy = np.meshgrid(np.arange(msz)-msz/2, np.arange(msz)-msz/2)
+        
+        xy = pupil.hex_grid_coords(nr+1, astep, rot=np.pi/2)
+        xy[0] += self.dx * astep # optional offset of
+        xy[1] += self.dy * astep # the DM position
+        xy = np.round(xy).astype(np.int)
+        
+        seg = pupil.uniform_hex(msz, msz, arad)
+                
+        for ii in range(self.ns):
+            seg1 = seg*(self.dmd[ii,0]*seg + self.dmd[ii,1]*xx + self.dmd[ii,2]*yy)
+            dmmap += np.roll(np.roll(seg1, xy[0,ii], axis=0), xy[1,ii], axis=1)
+
+        return dmmap

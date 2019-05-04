@@ -146,6 +146,27 @@ def F_test_figure(ys, xs, ww):
     return(res)
 
 # ==================================================================
+def uniform_rect(ys, xs, yw, xw, between_pix=True):
+    ''' ---------------------------------------------------------
+    returns an (ys x xs) array with a centered uniform rectangle
+    of size (yw x xw)
+
+    Parameters:
+    ----------
+    - ys, xs: the size of the array
+    - yw, xw: the size of the rectangle
+    - between_pix: flag
+    ---------------------------------------------------------  '''
+    if between_pix is False:
+        xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+    else:
+        xx,yy  = np.meshgrid(np.arange(xs)-xs/2+0.5, np.arange(ys)-ys/2+0.5)
+    res = np.zeros_like(xx)
+    res[np.abs(xx) <= xw/2] = 1.0
+    res[np.abs(yy) <= yw/2] = 1.0
+    return(res)
+
+# ==================================================================
 def uniform_disk(ys, xs, radius, between_pix=False):
     ''' ---------------------------------------------------------
     returns an (ys x xs) array with a uniform disk of radius "radius".
@@ -158,6 +179,22 @@ def uniform_disk(ys, xs, radius, between_pix=False):
     res = np.zeros_like(mydist)
     res[mydist <= radius] = 1.0
     return(res)
+
+# ==================================================================
+def uniform_hex(ys, xs, hrad, between_pix=False):
+    ''' ---------------------------------------------------------
+    returns an (ys x xs) array with a uniform hexagon of radius "hrad"
+    ---------------------------------------------------------  '''
+    if between_pix is False:
+        xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+    else:
+        xx,yy  = np.meshgrid(np.arange(xs)-xs/2+0.5, np.arange(ys)-ys/2+0.5)
+
+    res = np.ones_like(xx)
+    res[np.abs(yy) > hrad - xx / np.sqrt(3)]  = 0.0
+    res[np.abs(yy) > hrad + xx / np.sqrt(3)]  = 0.0
+    res[np.abs(xx) > 0.5 * np.sqrt(3) * hrad]  = 0.0
+    return res
 
 # ==================================================================
 def four_spider_mask(ys, xs, pix_rad, pdiam, odiam=0.0, 
@@ -334,7 +371,7 @@ def VLT(n,m, radius, spiders=True, between_pix=True):
 
 # ==================================================================
 def keck(sz, spiders=True, between_pix=True):
-    tmp = segmented_aperture(sz, 3, sz/7, rot=0.0)
+    tmp = segmented_aperture(sz, 3, sz//7, rot=0.0)
     xx, yy = np.meshgrid(np.arange(sz)-sz/2, np.arange(sz)-sz/2)
     dist = np.hypot(yy, xx)
     obst = np.ones((sz,sz))
