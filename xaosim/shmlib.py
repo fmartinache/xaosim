@@ -5,19 +5,13 @@ Read and write access to shared memory (SHM) structures used by SCExAO
 
 - Author : Frantz Martinache
 - Date   : June 13, 2018
+- Revised: May 7, 2019
 
 Improved version of the original SHM structure used by SCExAO and friends.
 ---------------------------------------------------------------------------
 
-Named semaphores seems to be something missing from the python API and may 
-require the use of an external package.
-
-A possibility:
-http://semanchuk.com/philip/posix_ipc/
-
-More info on semaphores:
-https://www.mkssoftware.com/docs/man3/sem_open.3.asp
-https://docs.python.org/2/library/threading.html#semaphore-objects
+Semaphores required by SCExAO call for the specialized scexao_shm module.
+This module relies on the posix_ipc library available on PyPi
 
 ---------------------------------------------------------------------------
 Note on data alignment (refer to section 7.3.2.1 of python documentation)
@@ -45,7 +39,6 @@ Internally in this library, the axes are reversed: z,y,x.
 import os, sys, mmap, struct
 import numpy as np
 import time
-import pdb
 
 # ------------------------------------------------------
 #          list of available data types
@@ -59,9 +52,11 @@ all_dtypes = [np.uint8,     np.int8,    np.uint16,    np.int16,
 # ------------------------------------------------------
 hdr_fmt_pck = '32s 80s B   3I Q B   Q 2Q 2Q 2Q Q 2Q Q B b B   Q Q B   H   Q Q Q Q B   H 64s' # packed style
 hdr_fmt_aln = '32s 80s B3x 3I Q B7x Q 2Q 2Q 2Q Q 2Q Q B b B5x Q Q B1x H4x Q Q Q Q B1x H 64s4x' # aligned style
+c0_hdr_pos  = 20 # position of the counter #0 in the header. Used to speed up access later
 
 # ------------------------------------------------------
 # list of metadata keys for the shm structure (global)
+# these keys have to match the header introduced above!
 # ------------------------------------------------------
 mtkeys = ['bversion', 'bimname',
           'naxis', 'x', 'y', 'z', 'nel', 'atype', 'imtype',
@@ -75,6 +70,11 @@ mtkeys = ['bversion', 'bimname',
           'write', 'nbkw', 'bcudamem']
 
 ''' 
+
+One of the most important changes when moving from python2
+to python3 for this library was that the string C type 
+described by the format code "s" went from python data 
+type "str" to "bytes", likely to  acommodate unicode.
 
 ---------------------------------------------------------
 Table taken from Python 3 documentation, section 7.1.2.2.
@@ -134,7 +134,7 @@ class shm:
             self.kwfmt0 = "16s s7x"    # aligned keyword structure
 
         self.c0_offset = 0        # fast-offset for counter #0 (updated later)
-        self.kwsz      = 96 + struct.calcsize(self.kwfmt0) # keyword SHM size
+        self.kwsz      = struct.calcsize('16s 80s'+' '+self.kwfmt0) # keyword SHM size
 
         # --------------------------------------------------------------------
         #                dictionary containing the metadata
@@ -160,7 +160,7 @@ class shm:
         self.kwd = {'name': '', 'type': 'N', 'value': '', 'comment': ''}
 
         fmt     = self.hdr_fmt
-        self.c0_offset = struct.calcsize(' '.join(fmt.split()[:15]))
+        self.c0_offset = struct.calcsize(' '.join(fmt.split()[:c0_hdr_pos]))
         self.im_offset = struct.calcsize(fmt)
 
         # ---------------
@@ -303,7 +303,6 @@ class shm:
         
         for ii in range(len(mtkeys)):
             self.mtdata[mtkeys[ii]] = temp[ii]
-            #print("hdr #%2d: %16s =" % (ii, mtkeys[ii]), temp[ii])
 
         # special repackaging: image name (string) and size (tuple)
         self.mtdata['imname']  = self.mtdata['bimname'].decode('ascii').strip('\x00')

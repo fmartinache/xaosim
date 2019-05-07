@@ -19,7 +19,6 @@ from .shmlib import shm as shm0
 import numpy as np
 import posix_ipc as ipc
 import os
-import pdb
 
 class shm(shm0):
     # =====================================================================
