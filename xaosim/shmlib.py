@@ -55,32 +55,24 @@ all_dtypes = [np.uint8,     np.int8,    np.uint16,    np.int16,
               np.float32,   np.float64, np.complex64, np.complex128]
 
 # ------------------------------------------------------
-# list of metadata keys for the shm structure (global)
-# ------------------------------------------------------
-'''
-mtkeys = ['imname', 'naxis',  'size',    'nel',   'atype',
-          'crtime', 'latime', 'tvsec',   'tvnsec', 
-          'shared', 'status', 'logflag', 'sem',
-          'cnt0',   'cnt1',   'cnt2',
-          'write',  'nbkw']
-'''
-
-mtkeys = ['bimname', 'naxis', 'x', 'y', 'z', 'nel', 'atype',
-          'crtime', 'latime', 'tvsec',   'tvnsec', 
-          'shared', 'status', 'logflag', 'sem',
-          'cnt0',   'cnt1',   'cnt2',
-          'write',  'nbkw']
-
-# ------------------------------------------------------
 #    string used to decode the binary shm structure
 # ------------------------------------------------------
-#hdr_fmt_pck = '80s B 3I Q B d d q q B B B H5x Q Q Q B H'           # packed style
-#hdr_fmt_aln = '80s B3x 3I Q B7x d d q q B B B1x H2x Q Q Q B1x H4x' # aligned style
+hdr_fmt_pck = '32s 80s B   3I Q B   Q 2Q 2Q 2Q Q 2Q Q B b B   Q Q B   H   Q Q Q Q B   H 64s' # packed style
+hdr_fmt_aln = '32s 80s B3x 3I Q B7x Q 2Q 2Q 2Q Q 2Q Q B b B5x Q Q B1x H4x Q Q Q Q B1x H 64s4x' # aligned style
 
-
-hdr_fmt_pck = '<80s B   I I I Q B   d d q q B B B   H Q Q Q B   H'   # packed
-hdr_fmt_aln = '80s B3x I I I Q B7x d d q q B B B1x H2x Q Q Q B1x H4x' # aligned
-
+# ------------------------------------------------------
+# list of metadata keys for the shm structure (global)
+# ------------------------------------------------------
+mtkeys = ['bversion', 'bimname',
+          'naxis', 'x', 'y', 'z', 'nel', 'atype', 'imtype',
+          'crtime_sec', 'crtime_ns',
+          'latime_sec', 'latime_ns',
+          'atime_sec', 'atime_ns', 'atimearr',
+          'wtime_sec', 'wtime_ns', 'wtimearr',
+          'shared', 'loc', 'status',
+          'flag', 'flagarr', 'logflag', 'sem',
+          'cnt0', 'cnt1', 'cnt2', 'cntarr',
+          'write', 'nbkw', 'bcudamem']
 
 ''' 
 
@@ -147,14 +139,20 @@ class shm:
         # --------------------------------------------------------------------
         #                dictionary containing the metadata
         # --------------------------------------------------------------------
-        self.mtdata = {'imname': '', 'bimname': b'',
-                       'naxis' : 0, 'x' : 0, 'y': 0, 'z': 0,
-                       'size'  : (0,0,0), 'nel': 0, 'atype': 0,
-                       'crtime': 0.0, 'latime': 0.0, 
-                       'tvsec' : 0,   'tvnsec': 0,
-                       'shared': 1,   'status': 0, 'logflag': 0, 'sem': 10,
-                       'cnt0'  : 0,   'cnt1'  : 0, 'cnt2': 0,
-                       'write' : 0,   'nbkw'  : 0}
+
+        self.mtdata = {'version': '', 'bversion': b'',
+                       'imname': '', 'bimname': b'',
+                       'naxis': 0, 'x' : 0, 'y': 0, 'z': 0,
+                       'size': (0,0,0), 'nel': 0, 'atype': 0, 'imtype': 0,
+                       'crtime_sec' : 0, 'crtime_ns' : 0, 'crtime': (0,0),
+                       'latime_sec' : 0, 'latime_ns' : 0, 'latime': (0,0),
+                       'atime_sec' : 0,  'atime_ns' : 0,  'atime': (0,0), 'atimearr': 0, 
+                       'wtime_sec' : 0,  'wtime_ns' : 0,  'wtime': (0,0), 'wtimearr': 0,
+                       'shared': 0, 'loc': 0, 'status': 0, 'flag': 0,
+                       'flagarr': 0, 'logflag': 0, 'sem': 0,
+                       'cnt0': 0, 'cnt1': 0, 'cnt2': 0, 'cntarr': 0,
+                       'write': 0, 'nbkw': 0,
+                       'cudamem': '', 'bcudamem': b''}
 
         # --------------------------------------------------------------------
         #          dictionary describing the content of a keyword
@@ -185,6 +183,7 @@ class shm:
             self.buf_len = self.stats.st_size
             self.buf     = mmap.mmap(self.fd, self.buf_len, mmap.MAP_SHARED)
             self.read_meta_data(verbose=verbose)
+
             self.select_dtype()        # identify main data-type
             self.get_data()            # read the main data
             self.create_keyword_list() # create empty list of keywords
@@ -212,9 +211,12 @@ class shm:
         # feed the relevant dictionary entries with available data
         # ---------------------------------------------------------
         self.npdtype            = data.dtype
-        self.mtdata['imname']   = fname.ljust(80, 'x')
+        self.mtdata['imname']   = fname.ljust(80, ' ')
         self.mtdata['bimname']  = bytes(self.mtdata['imname'], 'ascii')
 
+        self.mtdata['version']  = "xaosim".ljust(32, ' ')
+        self.mtdata['bversion'] = bytes(self.mtdata['version'], 'ascii')
+        
         self.mtdata['naxis']    = data.ndim
         self.mtdata['size']     = data.shape[:data.ndim][::-1]
         self.mtdata['nel']      = data.size
@@ -240,10 +242,6 @@ class shm:
         temp    = [self.mtdata[mtkeys[ii]] for ii in range(len(mtkeys))]
         minibuf = struct.pack(fmt, *temp)
 
-        '''
-        self.c0_offset = struct.calcsize(' '.join(fmt.split()[:15]))
-        self.im_offset = struct.calcsize(fmt)
-        '''
         
         # ---------------------------------------------------------
         #             allocate the file and mmap it
@@ -305,10 +303,18 @@ class shm:
         
         for ii in range(len(mtkeys)):
             self.mtdata[mtkeys[ii]] = temp[ii]
-            
+            #print("hdr #%2d: %16s =" % (ii, mtkeys[ii]), temp[ii])
+
         # special repackaging: image name (string) and size (tuple)
-        self.mtdata['imname'] = self.mtdata['bimname'].decode('ascii').strip('\x00')
-        self.mtdata['size']   = self.mtdata['z'], self.mtdata['y'], self.mtdata['x']
+        self.mtdata['imname']  = self.mtdata['bimname'].decode('ascii').strip('\x00')
+        self.mtdata['version'] = self.mtdata['bversion'].decode('ascii').strip('\x00')
+        self.mtdata['cudamem'] = self.mtdata['bcudamem'].decode('ascii').strip('\x00')
+        self.mtdata['size']    = self.mtdata['z'], self.mtdata['y'], self.mtdata['x']
+        self.mtdata['crtime'] = self.mtdata['crtime_sec'], self.mtdata['crtime_ns']
+        self.mtdata['latime'] = self.mtdata['latime_sec'], self.mtdata['latime_ns']
+        self.mtdata['atime']  = self.mtdata['atime_sec'], self.mtdata['atime_ns']
+        self.mtdata['wtime']  = self.mtdata['wtime_sec'], self.mtdata['wtime_ns']
+
         if verbose:
             self.print_meta_data()
 
@@ -357,13 +363,13 @@ class shm:
         # ------------------------------------------
         kwfmt = '16s 80s'
         
-        if ktype == 'L':   # keyword value is int64
+        if ktype == b'L':   # keyword value is int64
             kwfmt = 'q 8x 80s'
-        elif ktype == 'D': # keyword value is double
+        elif ktype == b'D': # keyword value is double
             kwfmt = 'd 8x 80s'
-        elif ktype == 'S': # keyword value is string
+        elif ktype == b'S': # keyword value is string
             kwfmt = '16s 80s'
-        elif ktype == 'N': # keyword is unused
+        elif ktype == b'N': # keyword is unused
             kwfmt = '16s 80s'
         
         kval, kcomm = struct.unpack(kwfmt, self.buf[k0+kwlen:k0+kwsz])
@@ -374,9 +380,9 @@ class shm:
         # ------------------------------------------
         #    fill in the dictionary of keywords
         # ------------------------------------------
-        if (ktype == 'L'):
+        if (ktype == b'L'):
             self.kwds[ii]['value'] = np.long(kval)
-        elif (ktype == 'D'):
+        elif (ktype == b'D'):
             self.kwds[ii]['value'] = np.double(kval)
         else:
             self.kwds[ii]['value'] = ktype.decode('ascii').strip('\x00')
@@ -456,13 +462,13 @@ class shm:
         kval  = self.kwds[ii]['value']
         kcomm = self.kwds[ii]['comment']
 
-        if ktype == 'L':
+        if ktype == 'L' or ktype == b'L':
             kwfmt = '='+self.kwfmt0+' q 8x 80s'
             tmp = (bytes(kname, "ascii"),
                    bytes(ktype, "ascii"),
                    kval,
                    bytes(kcomm, "ascii"))
-        elif ktype == 'D':
+        elif ktype == 'D' or ktype == b'D':
             kwfmt = '='+self.kwfmt0+' d 8x 80s'
             tmp = (bytes(kname, "ascii"),
                    bytes(ktype, "ascii"),
@@ -545,8 +551,6 @@ class shm:
                 timen = time.time()
 
         data = np.fromstring(self.buf[i0:i1],dtype=self.npdtype) # read img
-
-        #pdb.set_trace()
         
         if reform:
             if self.mtdata['naxis'] == 2:

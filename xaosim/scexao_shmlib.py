@@ -15,9 +15,10 @@ implemented, when dealing with camera images.
 
 '''
 
-from shmlib import shm as shm0
+from .shmlib import shm as shm0
 import numpy as np
 import posix_ipc as ipc
+import os
 import pdb
 
 class shm(shm0):
@@ -44,7 +45,7 @@ class shm(shm0):
         self.nosem = True
         shm0.__init__(self, fname, data, verbose, False, nbkw)
         self.nsem = 10 # number of semaphores to address
-        myname = fname.split('/tmp/')[-1].split('.')[0]
+        myname = os.path.basename(fname).split('.')[0]
 
         for ii in range(self.nsem):
             semf = "%s_sem%02d" % (myname, ii)
@@ -65,6 +66,7 @@ class shm(shm0):
                 exec('self.sem%02d.release()' % (ii,))
         else:
             print("skip sem post this first time")
+
     # =====================================================================
     def close(self,):
         shm0.close(self)
