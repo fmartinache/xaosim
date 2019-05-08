@@ -5,6 +5,7 @@ from pygame.locals import *
 import numpy as np
 import pdb
 import socket
+import os
 
 # =================================================
 # =================================================
@@ -12,19 +13,13 @@ chn = 4
 
 # =================================================
 # =================================================
+if 'scexao' in socket.gethostname():
+    from xaosim.scexao_shmlib import shm
+else:
+    from xaosim.shmlib  import shm
 
-from xaosim.shmlib  import shm
 from xaosim.zernike import mkzer1
 from xaosim.zernike import zer_mode_bank_2D
-
-import xaosim.myjoystick
-
-joy = xaosim.myjoystick.Joystick()
-
-try:
-    joy.compute()    
-except:
-    joy = None
 
 
 hmsg = """
@@ -41,7 +36,7 @@ hmsg = """
 -------------------------------------------------------
 This application is a work in progress - an exercise in
 intuitive instrument control interface, taking advantage
-of the Pygame library (and access to joysticks, etc).
+of the Pygame library.
 
 It is just made available as it is, for test purposes.
 
@@ -77,21 +72,18 @@ sync = True
 if 'scexao' in socket.gethostname():
     dmc  = shm('/tmp/dm00disp%02d.im.shm' % (chn,)) # DM channel (perturbation)
 else: # simulation rig
-    dmc  = shm('/tmp/dmdisp%d.im.shm' % (chn,)) # DM channel (perturbation)
+    dmc  = shm('/dev/shm/dmdisp%d.im.shm' % (chn,)) # DM channel (perturbation)
 
-try:
-    dms = dmc.size[0]                               # DM size
-except:
-    dms = dmc.mtdata['size'][0]
     
+dms = dmc.mtdata['size'][1] # dm size
+pdb.set_trace()
+
 # -----------------------
 #   set up the window
 # -----------------------
 adelay = 100 # action delay (keys and joystick actions)
 pygame.init()
 pygame.key.set_repeat(adelay, 1)
-last_joy_updt = pygame.time.get_ticks()
-joy_pressed = 0
 
 FPS = 30                        # frames per second setting
 fpsClock = pygame.time.Clock()  # start the pygame clock!
@@ -112,8 +104,8 @@ def select_ZER_basis(dms):
 
     if dms < 50: # ---- for the ALPAO DM ----
         bank_dm_modes = np.zeros((nzer, dms, dms)).astype('float32')
-        for i in xrange(nzer):
-            bank_dm_modes[i] = mkzer1(i+i0, dms, dms/2, False)
+        for i in range(nzer):
+            bank_dm_modes[i] = mkzer1(i+i0, dms, dms//2, False)
 
         mask[:3,0] = 0.0
         mask[0,:3] = 0.0
@@ -132,7 +124,7 @@ def select_ZER_basis(dms):
         dmpz = 46 # pupil size in dm actuators
         temp = zer_mode_bank_2D(dmpz, i0, i1)
         bank_dm_modes = np.zeros((nzer, dms, dms)).astype('float32')
-        for i in xrange(nzer):
+        for i in range(nzer):
             bank_dm_modes[i, 0:dmpz, 1:dmpz+1] = temp[i]
 
     return(bank_dm_modes)
@@ -144,14 +136,14 @@ def combine_modes():
     global mode_basis
     a = np.zeros((dms, dms), dtype='float')
     if sync:
-        for i in xrange(z0, z1+1):
+        for i in range(z0, z1+1):
             a += z_vals[i-z0] * mode_basis[i-z0]
         dmc.set_data((a*mask).astype('float32'))
 
 # ===============================================================
-def draw_cursor(surf, (xc, yc, hh, ww), (vmin, vmax, vcur), active):
-    x0, y0 = xc - ww/2, yc - hh/2
-    x1 = x0 + ww * (vcur-vmin) / (vmax-vmin) - ww/20
+def draw_cursor(surf, xc, yc, hh, ww, vmin, vmax, vcur, active):
+    x0, y0 = xc - ww//2, yc - hh//2
+    x1 = x0 + ww * (vcur-vmin) / (vmax-vmin) - ww//20
     y1 = yc-hh
 
     if (active):
@@ -212,13 +204,13 @@ zone3 = hdline3.get_rect()
 ZH = zone1.h                    # text height
 FW, FH = XW-2*BW, YW-2*BW-2*ZH  # frame dimensions
 
-zone1.center = (BW+FW/6, BW+ZH)
-zone2.center = (BW+FW/2, BW+ZH)
-zone3.center = (BW+5*FW/6, BW+ZH)
+zone1.center = (BW+FW//6, BW+ZH)
+zone2.center = (BW+FW//2, BW+ZH)
+zone3.center = (BW+5*FW//6, BW+ZH)
 
-pygame.draw.rect(screen, DDGRY, (BW,BW,FW/3, 2*ZH), 0)
-pygame.draw.rect(screen, DDGRY, (BW+FW/3,BW,FW/3, 2*ZH), 0)
-pygame.draw.rect(screen, DDGRY, (BW+2*FW/3,BW,FW/3, 2*ZH), 0)
+pygame.draw.rect(screen, DDGRY, (BW,BW,FW//3, 2*ZH), 0)
+pygame.draw.rect(screen, DDGRY, (BW+FW//3,BW,FW//3, 2*ZH), 0)
+pygame.draw.rect(screen, DDGRY, (BW+2*FW//3,BW,FW//3, 2*ZH), 0)
 
 screen.blit(hdline1, zone1)
 screen.blit(hdline2, zone2)
@@ -229,21 +221,21 @@ screen.blit(hdline3, zone3)
 # -------------------------------
 
 blabels = ['SYNC', 'RESET', 'MEMO', 'SAVE', 'LOAD', 'RANDOM']
-bxs = [2*BW+FW/6, 2*BW+FW/2, 2*BW+5*FW/6, 2*BW+FW/6, 2*BW+FW/2, 2*BW+5*FW/6]
+bxs = [2*BW+FW//6, 2*BW+FW//2, 2*BW+5*FW//6, 2*BW+FW//6, 2*BW+FW//2, 2*BW+5*FW//6]
 by0 = YW - 4*ZH
 bys = [by0, by0, by0, by0 + 2*ZH, by0 + 2*ZH, by0 + 2*ZH]
 
-for i in xrange(6):
-    exec 'b_lbl%d = font1.render(blabels[i], True, FGCOL)' % (i,)
-    exec 'b_rec%d = b_lbl%d.get_rect()' % (i,i,)
-    exec 'b_rec%d.center = (bxs[i], bys[i]+0.75*ZH)' % (i,)
-    exec 'screen.blit(b_lbl%d, b_rec%d), ' % (i,i,)
+for i in range(6):
+    exec('b_lbl%d = font1.render(blabels[i], True, FGCOL)' % (i,))
+    exec('b_rec%d = b_lbl%d.get_rect()' % (i,i,))
+    exec('b_rec%d.center = (bxs[i], bys[i]+0.75*ZH)' % (i,))
+    exec('screen.blit(b_lbl%d, b_rec%d), ' % (i,i,))
 
 xws, yws = 100, 100
 imin, imax = 0, 0
 surf_live_img   = pygame.surface.Surface((xws, yws))
 rect1           = surf_live_img.get_rect()
-rect1.center    = (5+xws/2, 5+yws/2)
+rect1.center    = (5+xws//2, 5+yws//2)
 
 
 zlabel = ['focus', 'astig1', 'astig2', 'coma1', 'coma2', 
@@ -317,64 +309,6 @@ while True: # the main game loop
                 umode = (umode + 1) % 3
                 wmode = wmodes[umode]
 
-        # ---------------------------------------------
-        #             joystick buttons
-        # ---------------------------------------------
-        elif event.type == pygame.JOYBUTTONDOWN:
-            if event.button == 5:
-                umode = (umode + 1) % 3
-                wmode = wmodes[umode]
-
-            if event.button == 4:
-                umode = (umode - 1) % 3
-                wmode = wmodes[umode]
-
-            if event.button == 8: # SYNCHRONIZE (SELECT BUTTON)
-                if (umode == 0):
-                    sync = True - sync
-                    combine_modes()
-
-            if event.button == 9: # RESET (START BUTTON)
-                z_vals = np.zeros(10)
-                combine_modes()
-
-        # ---------------------------------------------
-        #             joystick axis motion
-        # ---------------------------------------------
-        elif event.type == pygame.JOYAXISMOTION:
-            #pdb.set_trace()
-            if joy != None:
-                joy.compute()
-                print joy.x1, joy.y1
-
-        # ---------------------------------------------
-        #             joystick hats
-        # ---------------------------------------------
-        elif event.type == pygame.JOYHATMOTION:
-            #if event.value == (0,0):
-                #last_joy_updt = pygame.time.get_ticks()
-                #joy_pressed = 0
-            if event.value == (1,0):
-                if (umode == 0):
-                    temp = z_vals[mode_actv] + 10 * zreso
-                    if (temp < amax):
-                        z_vals[mode_actv] = temp
-                    combine_modes()
-
-            elif event.value == (-1,0):
-                if (umode == 0):
-                    temp = z_vals[mode_actv] - 10 * zreso
-                    if (temp > amin):
-                        z_vals[mode_actv] = temp
-                    combine_modes()
-
-            elif event.value == (0,-1):
-                if (umode == 0):
-                    mode_actv = (mode_actv + 1) % dz
-
-            elif event.value == (0, 1):
-                if (umode == 0):
-                    mode_actv = (mode_actv - 1) % dz
 
         # ---------------------------------------------
         #               MOUSE actions
@@ -387,16 +321,16 @@ while True: # the main game loop
             clicked = True
             
             # --------- CLICK used to switch modes ------
-            for i in xrange(3):
-                exec 'mytest = zone%d.collidepoint(mx, my)' % (i+1,)
+            for i in range(3):
+                exec('mytest = zone%d.collidepoint(mx, my)' % (i+1,))
                 if (mytest):
                     umode = i
                     wmode = wmodes[umode]
 
             # ---------- manual mode use case ----------
             if (umode == 0):
-                for i in xrange(6):
-                    exec 'mytest = b_rec%d.collidepoint(mx, my)' % (i,)
+                for i in range(6):
+                    exec('mytest = b_rec%d.collidepoint(mx, my)' % (i,))
                     if (mytest):
                         if (i == 0):   # SYNC
                             sync = True - sync
@@ -441,7 +375,7 @@ while True: # the main game loop
         pygame.draw.rect(screen, DDGRY, (BW,BW,FW/3, 2*ZH), 0)
         pygame.draw.rect(screen, FGCOL, (BW,BW,FW/3, 2*ZH), 2)
 
-        for i in xrange(z0, z1+1):
+        for i in range(z0, z1+1):
             yy = 200 + 50 * (i - z0)
             hdl = font1.render(zlabel[i-z0],  True, FGCOL)
 
@@ -452,8 +386,8 @@ while True: # the main game loop
             active = False
             if mode_actv == i-z0:
                 active = True
-            draw_cursor(screen, (BW+FW/2, yy, 22, 200), 
-                        (amin, amax, z_vals[i-z0]), active)
+            draw_cursor(screen, BW+FW/2, yy, 22, 200, 
+                        amin, amax, z_vals[i-z0], active)
 
         if sync:
             pygame.draw.rect(screen, GREEN, 
@@ -466,12 +400,12 @@ while True: # the main game loop
                          (bxs[0]-FW/6, bys[0], FW/3-2*BW, 1.5*ZH), 2)
         screen.blit(b_lbl0, b_rec0)
         
-        for i in xrange(1,6):
+        for i in range(1,6):
             pygame.draw.rect(screen, ORANG, 
                              (bxs[i]-FW/6, bys[i], FW/3-2*BW, 1.5*ZH), 0)
             pygame.draw.rect(screen, FGCOL, 
                              (bxs[i]-FW/6, bys[i], FW/3-2*BW, 1.5*ZH), 2)
-            exec 'screen.blit(b_lbl%d, b_rec%d), ' % (i,i,)
+            exec('screen.blit(b_lbl%d, b_rec%d), ' % (i,i,))
 
         # ---------------------------------------------------------
             
