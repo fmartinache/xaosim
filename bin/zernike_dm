@@ -76,7 +76,6 @@ else: # simulation rig
 
     
 dms = dmc.mtdata['size'][1] # dm size
-pdb.set_trace()
 
 # -----------------------
 #   set up the window
