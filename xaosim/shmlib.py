@@ -47,12 +47,34 @@ all_dtypes = [np.uint8,     np.int8,    np.uint16,    np.int16,
               np.uint32,    np.int32,   np.uint64,    np.int64,
               np.float32,   np.float64, np.complex64, np.complex128]
 
-# ------------------------------------------------------
-#    string used to decode the binary shm structure
-# ------------------------------------------------------
-hdr_fmt_pck = '32s 80s B   3I Q B   Q 2Q 2Q 2Q Q 2Q Q B b B   Q Q B   H   Q Q Q Q B   H 64s' # packed style
-hdr_fmt_aln = '32s 80s B3x 3I Q B7x Q 2Q 2Q 2Q Q 2Q Q B b B5x Q Q B1x H4x Q Q Q Q B1x H 64s4x' # aligned style
-c0_hdr_pos  = 20 # position of the counter #0 in the header. Used to speed up access later
+# # ------------------------------------------------------
+# #    string used to decode the binary shm structure
+# # ------------------------------------------------------
+# hdr_fmt_pck = '32s 80s B   3I Q B   Q 2Q 2Q 2Q Q 2Q Q B b B   Q Q B   H   Q Q Q Q B   H 64s' # packed style
+# hdr_fmt_aln = '32s 80s B3x 3I Q B7x Q 2Q 2Q 2Q Q 2Q Q B b B5x Q Q B1x H4x Q Q Q Q B1x H 64s4x' # aligned style
+# c0_hdr_pos  = 20 # position of the counter #0 in the header. Used to speed up access later
+
+# # ------------------------------------------------------
+# # list of metadata keys for the shm structure (global)
+# # these keys have to match the header introduced above!
+# # ------------------------------------------------------
+# mtkeys = ['bversion', 'bimname',
+#           'naxis', 'x', 'y', 'z', 'nel', 'atype', 'imtype',
+#           'crtime_sec', 'crtime_ns',
+#           'latime_sec', 'latime_ns',
+#           'atime_sec', 'atime_ns', 'atimearr',
+#           'wtime_sec', 'wtime_ns', 'wtimearr',
+#           'shared', 'loc', 'status',
+#           'flag', 'flagarr', 'logflag', 'sem',
+#           'cnt0', 'cnt1', 'cnt2', 'cntarr',
+#           'write', 'nbkw', 'bcudamem']
+
+# # ------------------------------------------------------
+# #    string used to decode the binary shm structure
+# # ------------------------------------------------------
+hdr_fmt_pck = '32s 80s B   3I Q B   Q 2Q 2Q 2Q 2Q   B b B   Q   B   H   Q Q Q B   H 64s' # packed style
+hdr_fmt_aln = '32s 80s B3x 3I Q B7x Q 2Q 2Q 2Q 2Q   B b B5x Q   B1x H4x Q Q Q B1x H 64s4x' # aligned style
+c0_hdr_pos  = 17 # position of the counter #0 in the header. Used to speed up access later
 
 # ------------------------------------------------------
 # list of metadata keys for the shm structure (global)
@@ -62,11 +84,11 @@ mtkeys = ['bversion', 'bimname',
           'naxis', 'x', 'y', 'z', 'nel', 'atype', 'imtype',
           'crtime_sec', 'crtime_ns',
           'latime_sec', 'latime_ns',
-          'atime_sec', 'atime_ns', 'atimearr',
-          'wtime_sec', 'wtime_ns', 'wtimearr',
+          'atime_sec', 'atime_ns',
+          'wtime_sec', 'wtime_ns',
           'shared', 'loc', 'status',
-          'flag', 'flagarr', 'logflag', 'sem',
-          'cnt0', 'cnt1', 'cnt2', 'cntarr',
+          'flag', 'logflag', 'sem',
+          'cnt0', 'cnt1', 'cnt2',
           'write', 'nbkw', 'bcudamem']
 
 ''' 

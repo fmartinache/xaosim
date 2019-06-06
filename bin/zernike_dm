@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import pygame, sys
 from pygame.locals import *
@@ -120,11 +120,13 @@ def select_ZER_basis(dms):
         mask[-3,-1]  = 0.0
 
     else: # ------- for the SCExAO DM -------
-        dmpz = 46 # pupil size in dm actuators
+        #dmpz = 46 # pupil size in dm actuators
+        dmpz = 50 # pupil size in dm actuators
         temp = zer_mode_bank_2D(dmpz, i0, i1)
         bank_dm_modes = np.zeros((nzer, dms, dms)).astype('float32')
         for i in range(nzer):
-            bank_dm_modes[i, 0:dmpz, 1:dmpz+1] = temp[i]
+            #bank_dm_modes[i, 0:dmpz, 1:dmpz+1] = temp[i]
+            bank_dm_modes[i, 0:dmpz, 0:dmpz] = temp[i]
 
     return(bank_dm_modes)
 # ===============================================================

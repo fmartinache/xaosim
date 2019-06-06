@@ -162,8 +162,10 @@ def uniform_rect(ys, xs, yw, xw, between_pix=True):
     else:
         xx,yy  = np.meshgrid(np.arange(xs)-xs/2+0.5, np.arange(ys)-ys/2+0.5)
     res = np.zeros_like(xx)
-    res[np.abs(xx) <= xw/2] = 1.0
-    res[np.abs(yy) <= yw/2] = 1.0
+    res[(np.abs(xx) <= xw/2)*(np.abs(yy) <= yw/2)] = 1.0
+
+    #res[np.abs(xx) <= xw/2] = 1.0
+    #res[np.abs(yy) <= yw/2] = 1.0
     return(res)
 
 # ==================================================================
