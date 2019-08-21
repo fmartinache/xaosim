@@ -2,10 +2,6 @@ import numpy as np
 import pdb
 from scipy.ndimage import rotate
 
-shift = np.fft.fftshift
-fft   = np.fft.fft2
-ifft  = np.fft.ifft2
-
 dtor = np.pi / 180.0 # convert degrees to radians
 
 # ==================================================================
@@ -41,16 +37,16 @@ def spectral_sampling(wl1, wl2, nl, wavenum=False):
 
 # ==================================================================
 def hex_grid_coords(nr=1, radius=10, rot=0.0):
-    ''' -------------------------------------------------------------------
-    returns a 2D array of real x,y coordinates for a regular hexagonal grid
-    that fits within a hexagon.
+    ''' ----------------------------------------------------------
+    returns a 2D array of real x,y coordinates for a regular 
+    hexagonal grid that fits within a hexagon.
 
     Parameters:
     ----------
     - nr     : the number of "rings" (integer)
     - radius : the radius of a ring (float)
     - rot    : a rotation angle (in radians)
-    ------------------------------------------------------------------- '''
+    ---------------------------------------------------------- '''
     xs = np.array(())
     ys = np.array(())
 
@@ -86,14 +82,20 @@ def meta_hex_grid_coords(xy, nr=1, radius=10):
     xs = np.array(())
     ys = np.array(())
 
-    npt = xy.shape[1] # number of points in the input grid
+    npt = np.max(xy.shape) # number of points in the input grid
+    xy0 =xy.copy() # local copy
+    if xy0.shape[0] == npt:
+        xy0 = xy0.T
 
     temp = hex_grid_coords(nr, radius)
     for k in range(npt):
-        xs = np.append(xs, temp[0,:] + xy[0,k])
-        ys = np.append(ys, temp[1,:] + xy[1,k])
+        xs = np.append(xs, temp[0,:] + xy0[0,k])
+        ys = np.append(ys, temp[1,:] + xy0[1,k])
 
-    return(np.array((xs, ys)))
+    if xy.shape[0] == npt:
+        return(np.array((xs, ys)).T)
+    else:
+        return(np.array((xs, ys)))
 
 # ==================================================================
 def hex_mirror_model(nra, nrs, step, fill=False, rot=0.0):
@@ -348,6 +350,60 @@ def HST(xs,ys, radius, spiders=True, between_pix=True):
                             spiders=spiders, between_pix=between_pix))
 
 # ==================================================================
+def PHARO(PSZ, rad, mask="std", between_pix=True, ang=0):
+    ''' ---------------------------------------------------------
+    returns an array that draws the pupil of the PHARO camera
+    of the Palomar Hale telescope, at the center of an array of
+    size "PSZ" with radius "radius" (both in pixels).
+
+    Parameters:
+    ----------
+    - PSZ:     size of the array (assumed to be square)
+    - rad:     radius of the standard pupil (in pixels)
+    - mask:    aperture mask used
+      + "std": standard cross (default)
+      + "med": medium cross
+    - between_pix: flag
+    - ang:     global rotation of the pupil (in degrees)
+
+    Notes:
+    -----
+    The reference is the standard cross radius, which corresponds
+    to an actual 4.978 m clear aperture on the telescope. The
+    central obstruction diameter is then 1.841 m (standard cross).
+
+    The med_cross corresponds to a 4.646 m clear aperture,
+    and a 2.293 central obstruction.
+    
+    See Hayward et al (2000) in PASP for reference.
+    --------------------------------------------------------- '''
+    xx,yy  = np.meshgrid(np.arange(PSZ)-PSZ/2, np.arange(PSZ)-PSZ/2)
+
+    if between_pix is True:
+        xx += 0.5
+        yy += 0.5
+
+    mydist = np.hypot(yy,xx)
+
+    res = np.zeros_like(mydist)
+
+    if mask is "med":
+        res[mydist <= 0.933 * rad]   = 1.0 # undersized aperture
+        res[mydist <= 0.460 * rad]   = 0.0 # oversized obstruction
+        res[np.abs(xx) < 0.05 * rad] = 0.0 # fat spiders
+        res[np.abs(yy) < 0.05 * rad] = 0.0 # fat spiders
+
+    else:
+        res[mydist <= rad]             = 1.0 # std clear aperture
+        res[mydist <= 0.370 * rad]     = 0.0 
+        res[np.abs(xx) <= 0.015 * rad] = 0.0
+        res[np.abs(yy) <= 0.015 * rad] = 0.0
+
+    if ang is not 0:
+        res = rotate(res, ang, order=0, reshape=False)
+    return res
+
+# ==================================================================
 def VLT(n,m, radius, spiders=True, between_pix=True):
     ''' ---------------------------------------------------------
     returns an array that draws the pupil of the VLT
@@ -560,29 +616,6 @@ def golay9(sz, prad, hrad, between_pix=True, rot=0.0):
     return(pup)
 
 # ======================================================================
-def piston_map(sz, coords, hrad, between_pix=True, piston=None):
-    off = 0
-    if between_pix is True:
-        off = 0.5
-    xx,yy  = np.meshgrid(np.arange(sz)-sz/2+off, np.arange(sz)-sz/2+off)
-    mydist = np.hypot(yy,xx)
-    pmap   = np.zeros((sz,sz))
-
-    p0 = np.zeros(coords.shape[0])
-    if piston is not None:
-        p0 = piston
-    else:
-        p0 = np.random.randn(coords.shape[0])
-        
-    xs = coords[:,0]
-    ys = coords[:,1]
-    for i in range(xs.size):
-        pmap = np.roll(np.roll(pmap, -ys[i], 0), -xs[i], 1)
-        pmap[mydist < hrad] = p0[i]
-        pmap = np.roll(np.roll(pmap,  ys[i], 0),  xs[i], 1)
-    return pmap
-
-# ======================================================================
 def lwe_mode_bank_2D(sz, odiam=8.0, beta=51.75, offset=1.28):
     ''' -------------------------------------------------------------
     Builds a 3D array containing pupil images of the 12 raw LWE
@@ -615,130 +648,3 @@ def lwe_mode_bank_2D(sz, odiam=8.0, beta=51.75, offset=1.28):
             bank[ii] = temp * quads[ii // 3]
         bank[ii] /= bank[ii].std()
     return(bank)
-
-# ======================================================================
-def kolmo(rnd, fc, ld0, correc=1e0, rms=0.1):
-    '''Does a Kolmogorov wavefront simulation with partial AO correction.
-    
-    Wavefront simulation of total size "size", following Kolmogorov statistics
-    with a Fried parameter "r0", with partial AO correction up to a cutoff 
-    frequency "fc". 
-
-    Parameters:
-    ----------
-
-    - rnd     : array of uniformly distributed numbers [0,1)
-    - fc      : cutoff frequency (in lambda/D)
-    - ld0     : lambda/D (in pixels)
-    - correc  : correction of wavefront amplitude (factor 10, 100, ...)
-    - rms     : rms over the entire computed wavefront
-
-    Note1: after applying the pupil mask, the Strehl is going to vary a bit
-    Note2: one provides rnd from outside the routine so that the same 
-    experiment can be repeated with the same random numbers.
-    '''
-
-    ys,xs = rnd.shape
-    xx,yy = np.meshgrid(np.arange(xs) - xs/2, np.arange(ys) - ys/2)
-    rr    = shift(np.hypot(yy,xx))
-
-    in_fc = (rr < (fc*ld0))
-
-    rr[0,0] = 1.0 # trick to avoid div by 0!
-    modul = rr**(-11./6.)
-    modul[in_fc] /= correc
-    
-    test = (ifft(modul * np.exp(1j * 2*np.pi * (rnd - 0.5)))).real
-    
-    test -= np.mean(test)
-    test *= rms/np.std(test)
-
-    return test
-
-# ==================================================================
-def atmo_screen(isz, ll, r0, L0):
-    '''The Kolmogorov - Von Karman phase screen generation algorithm.
-
-    Adapted from the work of Carbillet & Riccardi (2010).
-    http://cdsads.u-strasbg.fr/abs/2010ApOpt..49G..47C
-
-    Parameters:
-    ----------
-
-    - isz: the size of the array to be computed (in pixels)
-    - ll:  the physical extent of the phase screen (in meters)
-    - r0: the Fried parameter, measured at a given wavelength (in meters)
-    - L0: the outer scale parameter (in meters)
-
-    Returns: two independent phase screens, available in the real and 
-    imaginary part of the returned array.
-
-    -----------------------------------------------------------------
-
-    '''
-    phs = 2*np.pi * (np.random.rand(isz, isz) - 0.5)
-
-    xx, yy = np.meshgrid(np.arange(isz)-isz/2, np.arange(isz)-isz/2)
-    rr = np.hypot(yy, xx)
-    rr = shift(rr)
-    rr[0,0] = 1.0
-
-    modul = (rr**2 + (ll/L0)**2)**(-11/12.)
-    screen = ifft(modul * np.exp(1j*phs)) * isz**2
-    screen *= np.sqrt(2*0.0228)*(ll/r0)**(5/6.)
-
-    screen -= screen.mean()
-    return(screen)
-
-
-# ==================================================================
-def noll_variance(iz, D, r0):
-    '''Computes the Noll residual variance (in rad**2) for a partly
-    corrected wavefront.
-
-    Adapted from the work of Marcel Carbillet for CAOS Library 5.4
-
-    Itself based on (Noll R.J., JOSA, 66, 3 (1976))
-
-    Parameters:
-    ----------
-
-    - iz : Zernike mode until which the wavefront is ideally corrected
-    - D  : aperture diameter (in meters)
-    - r0 : Fried parameter (in meters)
-    -------------------------------------------------------------------
-    '''
-    noll_var = [1.0299 , 0.582  , 0.134  , 0.111  , 0.0880 , 
-                0.0648 , 0.0587 , 0.0525 , 0.0463 , 0.0401 , 
-                0.0377 , 0.0352 , 0.0328 , 0.0304 , 0.0279 ,
-                0.0267 , 0.0255 , 0.0243 , 0.0232 , 0.022  , 
-                0.0208]
-
-    try:
-        noll = noll_var[iz]
-    except:
-        noll = 0.2944*(iz+1.)**(-np.sqrt(3)/2.)
-
-    return(noll*(D/r0)**(5./3))
-
-# ==================================================================
-def noll_rms(iz, D, r0, wl=None):
-    '''Computes the RMS for a partly corrected wavefront.
-
-    Using the Noll residual variance function described above.
-    
-    Optional parameter:
-    ------------------
-
-    - wl: the wavelength (unit TBD by user)
-    
-    If wl is provided, the result (otherwise in radians) is converted
-    into OPD, expressed in matching units
-    -------------------------------------------------------------------
-    '''
-    vari = noll_variance(iz, D, r0)
-    if wl is None:
-        res = np.sqrt(vari)
-    else:
-        res = np.sqrt(vari) * wl / (2*np.pi)
-    return(res)

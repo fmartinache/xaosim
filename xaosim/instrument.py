@@ -2,6 +2,7 @@ import numpy as np
 import threading
 import time
 from . import pupil
+from . import wavefront as wft
 from .shmlib import shm
 from PIL import Image
 import pdb
@@ -65,7 +66,8 @@ class instrument(object):
             dms = 50
             self.cam = cam(self.name, arr_size, 320, 256,
                            16.7, 1.6e-6, shdir=shdir)
-            self.DM  = DM(self.name, dms, 8, shdir=shdir)
+            self.DM  = DM(self.name, dms=dms, nch=8, shdir=shdir,
+                          csz=arr_size)
             self.atmo = phscreen(self.name, arr_size, self.cam.ld0,
                                  dms, 1500.0, shdir=shdir)
 
@@ -82,7 +84,7 @@ class instrument(object):
         elif self.name == "CIAO":
             arr_size = 128
             dms      = 11
-            self.DM  = DM(self.name, dms, 8, shdir=shdir)
+            self.DM  = DM(self.name, dms=dms, nch=8, shdir=shdir)
 
             self.cam = SHcam(self.name, sz=128, dsz=128, mls=10,
                              pscale=36.56, wl=0.8e-6, 
@@ -92,13 +94,25 @@ class instrument(object):
         elif self.name == "NIRC2":
             arr_size = 256
             dms = 50
-            self.DM = DM(self.name, dms, 4, shdir=shdir)
+            self.DM = DM(self.name, dms=dms, nch=4, shdir=shdir)
             self.cam = cam(self.name, arr_size, 128, 128,
                            10.0, 3.776e-6,
                            shdir=shdir)
             self.atmo = phscreen(self.name, arr_size, self.cam.ld0,
                                  dms, 1500.0, shdir=shdir)
-            
+
+        elif  "PHARO" in self.name:
+            arr_size = 512
+            dms = 50
+            self.DM = DM(self.name, dms=dms, nch=4, shdir=shdir,
+                         shm_root="p3k_dm")
+            self.cam = cam(self.name, arr_size, 128, 128,
+                           25.0, 2.145e-6,
+                           shdir=shdir, shmf="pharo.im.shm")
+            self.atmo = phscreen(self.name, arr_size, self.cam.ld0,
+                                 dms, 100.0, shdir=shdir,
+                                 shmf="palomar_atmo.wf.shm")
+            self.atmo.update_screen(correc=10)
         else:
             print("""No template for '%s':
             check your spelling or... 
@@ -212,6 +226,11 @@ class instrument(object):
             self.cam.start(delay,
                            self.shdir+"hex_disp.wf.shm",
                            self.shdir+"phscreen.im.shm")
+
+        if "PHARO" in self.name:
+            self.cam.start(delay,
+                           self.shdir+"p3k_dm.wf.shm",
+                           self.shdir+"palomar_atmo.wf.shm")
 
     # ==================================================
     def stop(self,):
@@ -332,7 +351,7 @@ class phscreen(object):
         self.correc  = 1.0 # at first, no AO correction
         self.fc      = dms / 2.0
         self.ld0     = ld0
-        self.kolm    = pupil.kolmo(self.rndarr, self.fc, self.ld0, 
+        self.kolm    = wft.kolmo(self.rndarr, self.fc, self.ld0, 
                                    self.correc, self.rms)
 
         self.pdiam = np.round(sz / ld0).astype(int)
@@ -415,8 +434,8 @@ class phscreen(object):
         if fc is not None:
             self.fc = fc
             
-        self.kolm    = pupil.kolmo(self.rndarr, self.fc, self.ld0, 
-                                   self.correc, self.rms)
+        self.kolm    = wft.kolmo(self.rndarr, self.fc, self.ld0, 
+                                 self.correc, self.rms)
 
         self.kolm2   = np.tile(self.kolm, (2,2))
         self.kolm2   = self.kolm2[:self.sz+self.pdiam,:self.sz+self.pdiam]
@@ -585,6 +604,9 @@ class cam(object):
             self.pdiam = 2.4           # Hubble Space Telescope
         elif "NIRC2" in self.name:
             self.pdiam = 10.2          # Keck II Telescope "diameter"
+        elif "PHARO" in self.name:
+            self.pdiam = 4.978         # PHARO standard cross diameter
+            self.prebin = 5
         else:
             self.pdiam = 8.0           # default size: 8-meter telescope
 
@@ -619,6 +641,13 @@ class cam(object):
         elif name == "NIRC2":
             th0 = -20.5*np.pi/180.0 # pupil angle
             res = pupil.segmented_aperture(rsz, 3, int(rrad/3), rot=th0)
+            
+        elif name == "PHARO-std":
+            res = pupil.PHARO(rsz, rrad, mask="std", between_pix=True, ang=0)
+
+        elif name == "PHARO-med":
+            res = pupil.PHARO(rsz, rrad, mask="med", between_pix=True, ang=-2)
+
         else:
             print("Default: unobstructed circular aperture")
             res = pupil.uniform_disk(rsz, rsz, rrad)
