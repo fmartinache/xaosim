@@ -8,7 +8,6 @@
 Shared memory viewer.
 
 -------------------------------------------------------------------------- '''
-
 from xaosim.QtMain import QtMain, QApplication
 from PyQt5 import QtCore, QtGui, uic
 from PyQt5.QtCore import QThread
@@ -200,7 +199,7 @@ class MyWindow(QtGui.QMainWindow):
     def update_nonlinear(self):
         self.pwr = 1.0
         if self.chB_nonlinear.isChecked():
-            self.pwr = 0.3
+            self.pwr = 0.25
 
     # =========================================================
     def update_dark_state(self):
@@ -216,7 +215,7 @@ class MyWindow(QtGui.QMainWindow):
                                       cmap=self.mycmap), border=2)
 
     # =========================================================
-    def refresh_stats(self):
+    def refresh_stats(self, add_msg=None):
 
         pt_levels = [0, 5, 10, 20, 50, 75, 90, 95, 99, 100]
         pt_values = np.percentile(self.data_img, pt_levels)
@@ -228,15 +227,20 @@ class MyWindow(QtGui.QMainWindow):
 
         for i, ptile in enumerate(pt_levels):
             msg += "p-tile %3d = %8.2f\n" % (ptile, pt_values[i])
+        msg +=     "img count  = %8d\n" % (self.mySHM.get_counter(),)
+        if add_msg is not None:
+            msg += "%s\n" % (add_msg,)
         msg += "</pre>"
         self.lbl_stats.setText(msg)
 
     # =========================================================
     def load_shm(self):
         fname = QtGui.QFileDialog.getOpenFileName(self, 'Load SHM file', 
-                                                  '/dev/shm/*.im.shm')
+                                                  '/dev/shm/*.im.shm')[0]
+        
         if self.mySHM is not None:
             self.mySHM.close()
+            self.mySHM = None
             
         self.mySHM = shm(str(fname), packed=self.packed)
         self.live_counter = -1
@@ -246,8 +250,9 @@ class MyWindow(QtGui.QMainWindow):
         
     # =========================================================
     def load_shm_drk(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self, 'Load SHM file', 
-                                                  '/dev/shm/*.im.shm')
+        fname = QtGui.QFileDialog.getOpenFileName(self, 'Load SHM file for dark', 
+                                                  '/dev/shm/*.im.shm')[0]
+            
         try:
             temp = shm(str(fname), packed=self.packed)
             self.myDRK = temp.get_data()
@@ -261,9 +266,12 @@ class MyWindow(QtGui.QMainWindow):
         Refresh the display
         ---------------------------------------------------------- '''
         self.test = 0
+        add_msg = None
         if self.mySHM is not None:
-
-            if self.live_counter < self.mySHM.get_counter():
+            mycntr = self.mySHM.get_counter()
+            if mycntr == 0: # simulation has been stopped. Start anew!
+                self.live_counter = -1
+            if self.live_counter < mycntr:
                 if self.naxis == 2:
                     self.data_img = self.mySHM.get_data(False, True)
                 else:
@@ -276,11 +284,15 @@ class MyWindow(QtGui.QMainWindow):
                     try:
                         self.data_img -= self.myDRK
                     except:
+                        msg = self.lbl_stats.text()
+                        add_msg = "Dark subtraction problem?"
+                        self.lbl_stats.setText(msg)
+                        #print(msg)
                         pass
 
             self.refresh_img()
-            self.refresh_stats()
-            
+            self.refresh_stats(add_msg=add_msg)
+
 # ==========================================================
 # ==========================================================
 if __name__ == "__main__":
