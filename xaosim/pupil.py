@@ -36,6 +36,65 @@ def spectral_sampling(wl1, wl2, nl, wavenum=False):
         return (1./kk)
 
 # ==================================================================
+def ring_grid_coords(nel=6, rad=10.0, central=True, rot=0.0):
+    ''' ----------------------------------------------------------
+    returns a 2D array of "nel" real set of x,y coordinates for 
+    points located on a circle of radius "rad". Optionally, the
+    original central point can be discarded and the whole thing
+    can be rotated by an angle "rot" in radians.
+
+    Parameters:
+    ----------
+    - nel     : the number of points along the circle
+    - rad     : the radius of the ring (float)
+    - central : include or not the central point (boolean)
+    - rot     : a rotation angle (in radians)
+    ---------------------------------------------------------- '''
+    th = 2*np.pi * np.arange(nel)/float(nel) + rot
+    ring = np.array([rad * np.cos(th), rad * np.sin(th)])
+    if central is False:
+        return ring
+    else:
+        oring = np.zeros((2,nel+1))
+        oring[:,1:] = ring
+        return oring
+
+# ==================================================================
+def meta_ring_grid_coords(xy, nel=6, rad=10.0, central=True, rot=0.0):
+    '''------------------------------------------------------------------- 
+    returns a single 2D array of real x,y coordinates for a ring of nel 
+    point surrounding each point (x,y) coordinate provided in the input 
+    xy array.
+
+    Parameters;
+    ----------
+    - xy      : a 2D array of (x,y) coordinates (float)
+    - nel     : the number of points along the circle
+    - rad     : the radius of the ring (float)
+    - central : include or not the central point (boolean)
+    - rot     : a rotation angle of circle coords (in radians)
+    ------------------------------------------------------------------- '''
+
+    xs = np.array(())
+    ys = np.array(())
+
+    npt = np.max(xy.shape) # number of points in the input grid
+    xy0 =xy.copy() # local copy
+    if xy0.shape[0] == npt:
+        xy0 = xy0.T
+
+    temp = ring_grid_coords(nel=nel, rad=rad, central=central, rot=rot)
+    
+    for k in range(npt):
+        xs = np.append(xs, temp[0,:] + xy0[0,k])
+        ys = np.append(ys, temp[1,:] + xy0[1,k])
+
+    if xy.shape[0] == npt:
+        return(np.array((xs, ys)).T)
+    else:
+        return(np.array((xs, ys)))
+
+# ==================================================================
 def hex_grid_coords(nr=1, radius=10, rot=0.0):
     ''' ----------------------------------------------------------
     returns a 2D array of real x,y coordinates for a regular 
