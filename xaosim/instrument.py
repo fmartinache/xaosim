@@ -696,7 +696,7 @@ class cam(object):
             wf = np.exp(1j*phs)
 
         wf *= np.sqrt(self.signal / self.pupil.sum())
-        wf[self.pupil == False] = 0+0j # re-apply the pupil map
+        wf *= self.pupil # apply the pupil mask
 
         self.fc_pa = fft(shift(wf)) / self.sz # focal plane complex amplitude
 
