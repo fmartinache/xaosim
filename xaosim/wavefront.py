@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.ndimage import rotate
-
+from .pupil import *
 shift = np.fft.fftshift
 fft   = np.fft.fft2
 ifft  = np.fft.ifft2
@@ -47,7 +47,7 @@ def poke_map(sz, dx, dy, ww=3, bw=5):
     applied on one edge of the aperture to also appear on the
     opposite edge
     ----------------------------------------------------------- '''
-    poke = xs.pupil.uniform_rect(sz+2*bw, sz+2*bw, ww, ww, between_pix=False)
+    poke = uniform_rect(sz+2*bw, sz+2*bw, ww, ww, between_pix=False)
     poke = np.roll(np.roll(poke, dy, axis=1), dx, axis=0)
     return poke[bw:bw+sz, bw:bw+sz]
 
