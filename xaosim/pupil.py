@@ -409,6 +409,74 @@ def HST(xs,ys, radius, spiders=True, between_pix=True):
                             spiders=spiders, between_pix=between_pix))
 
 # ==================================================================
+def JWST(sz, pscale=0.1, aperture="CLEARP"):
+    ''' ---------------------------------------------------------
+    Returns a square (sz x sz) array filled with a representation
+    of the JWST aperture.
+
+    Parameters:
+    - sz       : size of the array (integer)
+    - pscale   : pupil pixel scale in meter / pixel (float)
+    - aperture : identifier (string: default "CLEARP")
+
+    Remarks:
+    -------
+    Using the longer wavelength filters ("F277W" and longer)
+    requires the insertion of the pupil alignment reference (PAR)
+    which alters the pupil shape from CLEAR to CLEARP.
+
+    CLEARP is assumed by default. Anything else will use CLEAR.
+    --------------------------------------------------------- '''
+    
+    xx, yy = np.meshgrid(np.arange(sz)-sz/2, np.arange(sz)-sz/2)
+    sp_th = 0.1  # true thickness spider in meters
+    trad  = 1.32 # true segment radius in meters
+    orad  = 1.00 # true PAR obstruction radius in meters
+    SP_th = 0.33 # true PAR spider thickness in meters
+    
+    seg_rad  = int(trad / pscale) # segment radius in pixels
+    spi_hthk = sp_th / pscale / 2 # TEL spider half-thickness in pixels
+    SPI_hthk = SP_th / pscale / 2 # PAR spider half-thickness in pixels
+    PAR_rad  = orad / pscale      # PAR obstruction radius in pixels
+    
+    res = np.zeros((sz, sz))
+
+    # segmented aperture first
+    # ------------------------
+    scoords = hex_grid_coords(nr=3, radius=seg_rad, rot=0)
+    scoords = np.delete(scoords, scoords.shape[1]//2, axis=1) # no central segment
+    scoords = scoords.astype('int')
+
+    seg0 = uniform_hex(sz,sz,seg_rad/np.sqrt(3)-1)
+    seg0 = seg0.T
+    
+    for ii in range(scoords.shape[1]):
+        res += np.roll(np.roll(seg0, scoords[0,ii], axis=0),
+                       scoords[1,ii], axis=1)
+
+    # adding spider arm shadow
+    # ------------------------
+    sp1 = 1 - (np.abs(xx) <= spi_hthk) * (yy > 0)
+    sp2 = rotate(sp1, 150.0, order=0, reshape=False)
+    sp3 = np.fliplr(sp2)
+
+    res *= sp1 * sp2 * sp3
+
+
+    # CLEARP or CLEAR?
+    # ----------------
+    if aperture == "CLEARP":
+        mask_obs = 1-uniform_disk(sz,sz, PAR_rad)
+
+        sp1 = 1 - (np.abs(xx) <= SPI_hthk) * (yy > 0)
+        sp2 = rotate(sp1, 120.0, order=0, reshape=False)
+        sp3 = np.fliplr(sp2)
+
+        mask_obs *= sp1 * sp2 * sp3
+        res *= mask_obs
+    return res
+
+# ==================================================================
 def PHARO(PSZ, rad, mask="std", between_pix=True, ang=0):
     ''' ---------------------------------------------------------
     returns an array that draws the pupil of the PHARO camera

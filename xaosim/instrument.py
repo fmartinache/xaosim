@@ -81,6 +81,15 @@ class instrument(object):
             self.atmo = phscreen(self.name, csize, self.cam.ld0,
                                  na0, 500.0, shdir=shdir)
 
+        elif self.name == "JWST":
+            csize = 512 # computation size
+            na0 = 5     # number of segments across 1 diameter
+            self.cam = cam(self.name, csize, 81, 81,
+                           65.0, 4.8e-6, shdir=shdir)
+            self.DM = HexDM(self.name, nr=2, nch=4, csz=csize,
+                            ld0=self.cam.ld0, na0=na0)
+            self.atmo = None
+            
         elif self.name == "CIAO":
             arr_size = 128
             dms      = 11
@@ -607,6 +616,9 @@ class cam(object):
         elif "PHARO" in self.name:
             self.pdiam = 4.978         # PHARO standard cross diameter
             self.prebin = 5
+        elif "JWST" in self.name:
+            self.pdiam = 6.5           # JWST diameter
+            self.prebin = 1            # try to do things well?
         else:
             self.pdiam = 8.0           # default size: 8-meter telescope
 
@@ -641,6 +653,9 @@ class cam(object):
         elif name == "NIRC2":
             th0 = -20.5*np.pi/180.0 # pupil angle
             res = pupil.segmented_aperture(rsz, 3, int(rrad/3), rot=th0)
+
+        elif name == "JWST":
+            res = pupil.JWST(rsz, self.pdiam / (2*self.prad0))
             
         elif name == "PHARO-std":
             res = pupil.PHARO(rsz, rrad, mask="std", between_pix=True, ang=0)
@@ -913,9 +928,9 @@ class SHcam(cam):
 
         xl0 = int(np.round(rcdiam/2))
 
-        for i in range(mls * mls): # cycle ove rthe u-lenses
+        for ii in range(mls * mls): # cycle ove rthe u-lenses
             wfs = np.zeros((2*rcdiam, 2*rcdiam), dtype=complex)
-            li, lj   = i / mls, i % mls # i,j indices for the u-lens
+            li, lj   = ii // mls, ii % mls # i,j indices for the u-lens
             pi0, pj0 = int(np.round(li * cdiam)), int(np.round(lj * cdiam))
             wfs[xl0:xl0+rcdiam, xl0:xl0+rcdiam] = wf[pi0:pi0+rcdiam,
                                                      pj0:pj0+rcdiam]
