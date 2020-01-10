@@ -415,6 +415,7 @@ def JWST(sz, pscale=0.1, aperture="CLEARP"):
     of the JWST aperture.
 
     Parameters:
+    ----------
     - sz       : size of the array (integer)
     - pscale   : pupil pixel scale in meter / pixel (float)
     - aperture : identifier (string: default "CLEARP")
@@ -475,6 +476,39 @@ def JWST(sz, pscale=0.1, aperture="CLEARP"):
         mask_obs *= sp1 * sp2 * sp3
         res *= mask_obs
     return res
+
+# ==================================================================
+def JWST_NRM(sz,pscale=0.0064486953125):
+    ''' ---------------------------------------------------------
+    Returns a square (sz x sz) array filled with a representation
+    of the JWST aperture with the non-redundant mask.
+
+    Parameters:
+    ----------
+    - sz       : size of the array (integer)
+    - pscale   : pupil pixel scale in meter / pixel (float)
+
+    Credit:
+    ------
+    Written by J. Marquez (2020)
+    --------------------------------------------------------- '''
+
+    ###		Hole positions (meters)			###
+    X_m = [ 1.99,     1.32,     0.0,     1.99,    1.32,   -1.32,   -2.64]
+    Y_m = [-1.14583, -2.28895, -2.28895, 1.14583, 2.28895, 2.28895, 0.0]
+    
+    hole_radius = 0.4650001189 # radius hole (meter)
+    hexa_f = np.zeros([sz,sz]) # Final NRM
+    
+    # First Hole
+    #-----------
+    hexa = uniform_hex(sz, sz, hole_radius/pscale, between_pix=False).T
+    #hexa = rotate(hexa, 90.0, order=0, reshape=False)
+
+    for i in range(len(X_m)):
+        hexa_p = np.roll(np.roll(hexa,int(X_m[i]/pscale),0),int(Y_m[i]/pscale),1)
+        hexa_f += hexa_p
+    return(hexa_f)
 
 # ==================================================================
 def PHARO(PSZ, rad, mask="std", between_pix=True, ang=0):

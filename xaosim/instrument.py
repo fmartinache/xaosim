@@ -81,7 +81,7 @@ class instrument(object):
             self.atmo = phscreen(self.name, csize, self.cam.ld0,
                                  na0, 500.0, shdir=shdir)
 
-        elif self.name == "JWST":
+        elif "JWST" in self.name:
             csize = 512 # computation size
             na0 = 5     # number of segments across 1 diameter
             self.cam = cam(self.name, csize, 81, 81,
@@ -606,7 +606,7 @@ class cam(object):
         
         if  "SCExAO" in self.name:
             self.pdiam = 7.92          # Subaru Telescope diameter (in meters)
-            self.prebin = 5
+            self.prebin = 5            # refined aperture description!
         elif "CIAO" in self.name:
             self.pdiam = 1.0           # C2PU Telescope diameter (in meters)
         elif "HST" in self.name:
@@ -618,9 +618,10 @@ class cam(object):
             self.prebin = 5
         elif "JWST" in self.name:
             self.pdiam = 6.5           # JWST diameter
-            self.prebin = 1            # try to do things well?
+            self.prebin = 5            # refined aperture description!
         else:
             self.pdiam = 8.0           # default size: 8-meter telescope
+            self.prebin = 1
 
         self.ld0     = self.wl / self.pdiam
         self.ld0    *= 3.6e6 / dtor / self.pscale # lambda_0/D   (in pixels)
@@ -655,7 +656,10 @@ class cam(object):
             res = pupil.segmented_aperture(rsz, 3, int(rrad/3), rot=th0)
 
         elif name == "JWST":
-            res = pupil.JWST(rsz, self.pdiam / (2*self.prad0))
+            res = pupil.JWST(rsz, self.pdiam / (2*self.prad0) / rebin)
+
+        elif name == "JWST-NRM":
+            res = pupil.JWST_NRM(rsz, self.pdiam / (2*self.prad0) / rebin)
             
         elif name == "PHARO-std":
             res = pupil.PHARO(rsz, rrad, mask="std", between_pix=True, ang=0)
