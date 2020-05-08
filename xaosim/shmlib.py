@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''---------------------------------------------------------------------------
 Read and write access to shared memory (SHM) structures used by SCExAO
@@ -273,6 +273,7 @@ class shm:
         npg = fsz // mmap.PAGESIZE + 1                 # nb pages
 
         self.fd = os.open(fname, os.O_CREAT | os.O_TRUNC | os.O_RDWR)
+        os.fchmod(self.fd, 0o777) # give RWX access to all users
         os.write(self.fd, b'\x00' * npg * mmap.PAGESIZE)
         self.buf = mmap.mmap(self.fd, npg * mmap.PAGESIZE, 
                              mmap.MAP_SHARED, mmap.PROT_WRITE)

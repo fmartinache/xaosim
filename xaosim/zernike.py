@@ -8,7 +8,7 @@ shift = np.fft.fftshift
 #   equivalent of the IDL dist function
 # ----------------------------------------
 def dist(n,m):
-    xx,yy = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
+    xx,yy = np.meshgrid(np.arange(n)-n//2, np.arange(m)-m//2)
     if (n % 2 == 0):
         xx += 0.5
     if (m % 2 == 0):
@@ -20,7 +20,7 @@ def dist(n,m):
 # size (n, m) with respect to the center of the array.
 # ---------------------------------------------------------
 def azim(n, m):
-    xx,yy = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
+    xx,yy = np.meshgrid(np.arange(n)-n//2, np.arange(m)-m//2)
     if (n % 2 == 0):
         xx += 0.5
     if (m % 2 == 0):

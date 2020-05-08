@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.ndimage import rotate
 from .pupil import *
+
 shift = np.fft.fftshift
 fft   = np.fft.fft2
 ifft  = np.fft.ifft2
@@ -133,20 +134,26 @@ def kolmo(rnd, fc, ld0, correc=1e0, rms=0.1):
     return test
 
 # ==================================================================
-def atmo_screen(isz, ll, r0, L0):
+def atmo_screen(isz, ll, r0, L0, fc=25, correc=1.0):
     ''' -----------------------------------------------------------
     The Kolmogorov - Von Karman phase screen generation algorithm.
 
     Adapted from the work of Carbillet & Riccardi (2010).
     http://cdsads.u-strasbg.fr/abs/2010ApOpt..49G..47C
 
+    Kolmogorov screen can be altered by an attenuation of the power
+    by a correction factor *correc* up to a cut-off frequency *fc*
+    expressed in number of cycles across the phase screen
+
     Parameters:
     ----------
 
-    - isz: the size of the array to be computed (in pixels)
-    - ll:  the physical extent of the phase screen (in meters)
-    - r0: the Fried parameter, measured at a given wavelength (in meters)
-    - L0: the outer scale parameter (in meters)
+    - isz    : the size of the array to be computed (in pixels)
+    - ll     :  the physical extent of the phase screen (in meters)
+    - r0     : the Fried parameter, measured at a given wavelength (in meters)
+    - L0     : the outer scale parameter (in meters)
+    - fc     : DM cutoff frequency (in lambda/D)
+    - correc : correction of wavefront amplitude (factor 10, 100, ...)
 
     Returns: two independent phase screens, available in the real and 
     imaginary part of the returned array.
@@ -159,6 +166,10 @@ def atmo_screen(isz, ll, r0, L0):
     rr[0,0] = 1.0
 
     modul = (rr**2 + (ll/L0)**2)**(-11/12.)
+
+    in_fc = (rr < fc)
+    modul[in_fc] /= correc
+    
     screen = ifft(modul * np.exp(1j*phs)) * isz**2
     screen *= np.sqrt(2*0.0228)*(ll/r0)**(5/6.)
 

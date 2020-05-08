@@ -408,6 +408,113 @@ def HST(xs,ys, radius, spiders=True, between_pix=True):
                             beta=beta, thick=thick, offset=offset, 
                             spiders=spiders, between_pix=between_pix))
 
+# ======================================================================
+def HST_NIC1(PSZ, rad, between_pix=True, ang=0):
+    ''' ---------------------------------------------------------
+    returns an array that draws the pupil of HST/NICMOS1 camera
+
+    Parameters:
+    ----------
+    - PSZ:     size of the array (assumed to be square)
+    - rad:     radius of the standard pupil (in pixels)
+    - between_pix: flag
+    - ang:     global rotation of the pupil (in degrees)
+    --------------------------------------------------------- '''
+    xx,yy  = np.meshgrid(np.arange(PSZ)-PSZ/2, np.arange(PSZ)-PSZ/2)
+
+    if between_pix is True:
+        xx += 0.5
+        yy += 0.5
+
+    mydist = np.hypot(yy,xx)
+
+    NCM = np.zeros_like(mydist) # nicmos cold mask
+
+    # --------------------------------
+    # OTA: Optical Telescope Assembly
+    # --------------------------------
+    OTA = np.zeros_like(mydist)
+    OTA[mydist <= 1.000 * rad]    = 1.0 # outer radius
+    OTA[mydist <= 0.330 * rad]    = 0.0 # telescope obstruction
+    OTA[np.abs(xx) < 0.011 * rad] = 0.0 # spiders
+    OTA[np.abs(yy) < 0.011 * rad] = 0.0 # spiders
+
+    tmp = np.roll(mydist, int(0.8921 * rad), axis=1) 
+    OTA[tmp <= 0.065 * rad] = 0.0 # mirror pad
+
+    tmp = np.roll(
+        np.roll(mydist, int(0.7555 * rad), axis=0),
+        int(-0.4615 * rad), axis=1) 
+    OTA[tmp <= 0.065 * rad] = 0.0 # mirror pad
+
+    tmp = np.roll(
+        np.roll(mydist, int(-0.7606 * rad), axis=0),
+        int(-0.4564 * rad), axis=1) 
+    OTA[tmp <= 0.065 * rad] = 0.0 # mirror pad
+
+    # --------------------------------
+    # NCM: NICMOS COLD MASK
+    # --------------------------------
+    NCM = np.zeros_like(mydist) # nicmos cold mask    
+    NCM[mydist <= 0.955 * rad]     = 1.0 # outer radius
+    NCM[mydist <= 0.372 * rad]     = 0.0 # obstruction 0.372
+    NCM[np.abs(xx) < 0.0335 * rad] = 0.0 # fat spiders
+    NCM[np.abs(yy) < 0.0335 * rad] = 0.0 # fat spiders
+
+    # PADS
+    cpadr = 0.065
+    NCM[(xx >= (0.8921-cpadr) * rad) * (np.abs(yy) <= cpadr * rad)] = 0.0
+    xx1 = rotate(xx, 121, order=0, reshape=False)
+    yy1 = rotate(yy, 121, order=0, reshape=False)
+    NCM[(xx1 >= (0.8921-cpadr) * rad) * (np.abs(yy1) <= cpadr * rad)] = 0.0
+    xx1 = rotate(xx, -121.5, order=0, reshape=False)
+    yy1 = rotate(yy, -121.5, order=0, reshape=False)
+    NCM[(xx1 >= (0.8921-cpadr) * rad) * (np.abs(yy1) <= cpadr * rad)] = 0.0
+    
+    #NCM = np.roll(NCM, int(-0.11 * rad), axis=0) # MASK SHIFT !!
+    NCM = np.roll(
+        np.roll(NCM, int(-0.0 * rad), axis=1),
+        int(-0.08 * rad), axis=0) # MASK SHIFT !!
+    res = 1.0 * (OTA * NCM)
+    
+    if ang is not 0:
+        res = rotate(res, ang, order=0, reshape=False)
+    return res
+
+# ==================================================================
+def KBENCH(sz, pscale=100.0, noc=False):
+    ''' ---------------------------------------------------------
+    Returns a square (sz x sz) array filled with the aperture
+    of the KERNEL segmented DM.
+
+    Parameters:
+    ----------
+    - sz     : size of the array (integer)
+    - pscale : pupil pixel scale in micron / pixel (float)
+    - noc    : masking central segment (default: False)
+
+    Planned: (but not implemented yet)
+    -------
+    - nodead : masking dead segments (default: False)
+    --------------------------------------------------------- '''
+    sstep = 0.650 # segment step size (according to BMC doc)
+    xx, yy = np.meshgrid(np.arange(sz)-sz/2, np.arange(sz)-sz/2)
+    res = np.zeros_like(xx)
+
+    seg_rad = int(sstep / pscale) # segment radius in pixels
+    scoords = hex_grid_coords(nr=8, radius=seg_rad, rot=2*np.pi/3).astype('int')
+
+    if noc: # mask central segment
+        scoords = np.delete(scoords, scoords.shape[1]//2, axis=1) 
+
+    seg0 = uniform_hex(sz, sz, seg_rad/np.sqrt(3)-1)
+    seg0 = seg0.T
+    
+    for ii in range(scoords.shape[1]):
+        res += np.roll(np.roll(seg0, scoords[0,ii], axis=0),
+                       scoords[1,ii], axis=1)
+    return res
+
 # ==================================================================
 def JWST(sz, pscale=0.1, aperture="CLEARP"):
     ''' ---------------------------------------------------------

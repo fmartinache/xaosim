@@ -1,12 +1,9 @@
-xaosim: a series of tools used to simulate an XAO-like system
+XAOSIM: a series of tools used to simulate an XAO-like system
 ===============================================================
 
-The specificity of XAOSIM is that it was built around shared memory data
-structures defined in the context of the SCExAO instrument by Olivier Guyon and
-Frantz Martinache. This approach makes it possible to design real-time AO
-control software using XAOSIM's simulation environment data and deploy it on an
-actual instrument (assuming that it uses the same exchange format) in a
-transparent manner.
+XAOSIM is a simulation package developed for theoretical and practical work in high angular resolution astronomy.
+
+The specificity of XAOSIM is that it was built around shared memory data structures defined in the context of the SCExAO instrument by Olivier Guyon and Frantz Martinache. This approach makes it possible to design real-time AO control software using XAOSIM's simulation environment data and deploy it on an actual instrument (assuming that it uses the same exchange format) in a transparent manner.
 
 In addition to the simulation library package, a shared memory data viewer GUI
 (shmview) is now part of the distribution.
@@ -31,39 +28,45 @@ It is also recommended to add ~/.local/bin/ to the path:
 Example use:
 -----------
 
+The package makes it possible to create an "instrument", that is a system made up of a telescope, an atmosphere, a deformable mirror that feed one or more cameras. To facilitate the use, it comes with a series of preset templates, such as the SCExAO instrument at the Subaru Telescope, the NIRC2 camera on Keck II, the NICMOS1 camera of HST, and a Shack-Hartman based AO system built at OCA for one of the C2PU telescopes. New templates can be added as required.
+
 >> python
 
-# import xaosim
+# import xaosim as xs
 
-# mysetup = xaosim.instrument("SCExAO")
+# scexao = xs.instrument("SCExAO", csz=245)
 
-# mysetup.start()
+# scexao.start()
 
 In a distinct shell:
 
 >> shmview /dev/shm/phscreen.im.shm &
 
->> shmview /dev/shm/ircam.im.shm &
+>> shmview /dev/shm/scexao_ircam.im.shm &
 
-Will open two pygame displays that show the live image and phase screen.
+Will open two display utilities that show the live image and phase screen.
 
 The package includes:
 --------------------
 
 - a deformable mirror (DM) module that includes a multi-channel communication
-  system, assumed to be located in a pupil plane.
+  system, assumed to be located in a pupil plane. The DM class simulates a
+  continuous membrane mirror with actuators laid out on a regualar grid.
 
-- an atmospheric phase screen (phscreen) module that simulates a Kolmogorov
-  frozen screen drifting over the aperture in a predefined direction.
+- an atmospheric phase screen (Phscreen) module that simulates a Kolmogorov +
+  Von Karman frozen screen drifting over the aperture in a predefined
+  direction.
   
-- a camera (CAM) module that produces images of a point source affected after
-  the wavefront has undergone the transformation induced by the DM.
+- a camera (Cam) module that produces images of a point source affected after
+  the wavefront has undergone the transformation induced by the DM. One special
+  case of camera is the Shack-Hartman camera (SHcam) used for wavefront sensing.
+
 
 The code is reasonably well documented and if you are experienced with
 diffractive optics simulations, you should quickly feel at home, and change the
 parameters of the turbulence, simulate partial AO correction and even use a
 perfect coronagraph.
-  
+
 It relies on a series of auxilliary tools:
 -----------------------------------------
 
@@ -82,4 +85,6 @@ It relies on a series of auxilliary tools:
 Release Notes:
 -------------
 
-As of March 2019, XAOSIM is now fully Python 3 compliant.
+- March 2019: XAOSIM is now fully Python 3 compliant.
+- May 2020: XAOSIM was rewritten during the COVID19 lockdown to accomodate emerging needs: segmented mirrors, higher fidelity DM simulation for fine focal plane-based metrology, Shack-Hartman camera, the ability to change the filter of the camera without altering the rest of the system.
+  
