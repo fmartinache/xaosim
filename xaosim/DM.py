@@ -334,3 +334,50 @@ class HexDM(DM):
             dmmap += np.roll(np.roll(seg1, xy[0,ii], axis=0), xy[1,ii], axis=1)
 
         return dmmap
+
+    # ==================================================
+    def map2D_2_TTP(self, dmmap=None):
+        ''' -------------------------------------------------------------------
+        Turns the provided DM map into tip-tilt-piston commands for the DM
+        *in the same unit as the input*
+
+        Parameters:
+        ----------
+        - dmmap: the DM map
+        
+        Remarks:
+        -------
+
+        Before being sent to the DM, the commands need to be properly scaled:
+        if the input is in radians, the commands must be converted into microns
+        for the DM, and take into account the x2 factor of the reflection! 
+
+        The scaling parameter will typically be *lambda / (4*PI)*
+        ----------------------------------------- '''
+        nr    = self.nr
+        arad  = self.astep/np.sqrt(3)
+
+        xx,yy = np.meshgrid(np.arange(self.csz)-self.csz/2,
+                            np.arange(self.csz)-self.csz/2)
+        
+        xy = pupil.hex_grid_coords(nr+1, self.astep, rot=0)
+        xy[0] += self.dx * self.astep # optional offset of
+        xy[1] += self.dy * self.astep # the DM position
+        xy = np.round(xy).astype(np.int)
+
+        # centered reference segment
+        seg = pupil.uniform_hex(self.csz, self.csz, arad).T
+
+        dmd0 = np.zeros_like(self.dmd0) # empty tip-tilt-piston commands
+
+        xxnorm = xx[seg > 0].dot(xx[seg > 0])
+        yynorm = yy[seg > 0].dot(yy[seg > 0])
+        
+        for ii in range(self.ns):
+            tmp = np.roll(np.roll(dmmap, -xy[0,ii], axis=0), -xy[1,ii], axis=1)
+            dmd0[ii,0] = tmp[seg > 0].mean()
+            dmd0[ii,1] = tmp[seg > 0].dot(xx[seg > 0]) / xxnorm
+            dmd0[ii,2] = tmp[seg > 0].dot(yy[seg > 0]) / yynorm
+
+        return dmd0
+    

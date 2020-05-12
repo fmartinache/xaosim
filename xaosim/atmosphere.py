@@ -137,6 +137,24 @@ class Phscreen(object):
 
 
     # ==============================================================
+    def set_qstatic(self, qstatic=None):
+        if qstatic is not None:
+            if qstatic.shape == (self.csz, self.csz):
+                self.qstatic = qstatic
+                print("quasi-static phase screen updated!")
+            else:
+                print("could not update quasi-static phase screen")
+                print("array should be %d x %d (dtype=%s)" % (
+                    self.csz, self.csz, str(self.qstatic.dtype)))
+
+            # if simulation is not already active, update phase screen!
+            if self.keepgoing == False:
+                self.shm_phs.set_data(self.qstatic)
+
+        else:
+            print("no new quasi-static screen was provided!")
+
+    # ==============================================================
     def update_screen(self, correc=None, fc=None, r0=None, L0=None):
         ''' ------------------------------------------------
         Generic update of the properties of the phase-screen

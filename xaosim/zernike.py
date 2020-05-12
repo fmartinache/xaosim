@@ -4,34 +4,67 @@ from scipy import *
 
 shift = np.fft.fftshift
 
-# ----------------------------------------
-#   equivalent of the IDL dist function
-# ----------------------------------------
 def dist(n,m):
-    xx,yy = np.meshgrid(np.arange(n)-n//2, np.arange(m)-m//2)
+    ''' -----------------------------------------------------------------------
+    Returns the distance (in pixels) relative to the center of the array
+
+    Parameters: 
+    ----------
+    - (n,m): size of the array in pixels
+
+    Remarks:
+    -------
+    - for odd size, center of array = central pixel
+    - for even size, center of array is in between pixels!
+
+    - equivalent of the convenient IDL dist function!
+    ----------------------------------------------------------------------- '''
     if (n % 2 == 0):
-        xx += 0.5
+        xl = np.arange(n) - n//2 + 0.5
+    else:
+        xl = np.arange(n) - n//2
+
     if (m % 2 == 0):
-        yy += 0.5
+        yl = np.arange(m) - m//2 + 0.5
+    else:
+        yl = np.arange(m) - m//2
+
+    xx,yy = np.meshgrid(xl, yl)
     return(np.hypot(yy,xx))
 
-# ---------------------------------------------------------
-# Returns the azimuth in radians of points in an array of 
-# size (n, m) with respect to the center of the array.
-# ---------------------------------------------------------
 def azim(n, m):
-    xx,yy = np.meshgrid(np.arange(n)-n//2, np.arange(m)-m//2)
+    ''' -----------------------------------------------------------------------
+    Returns the azimuth in radians of points in an array of size (n, m) with 
+    respect to the center of the array.
+
+    Parameters: 
+    ----------
+    - (n,m): size of the array in pixels
+
+    Remarks:
+    -------
+    - for odd size, center of array = central pixel
+    - for even size, center of array is in between pixels!
+
+    - equivalent of the convenient IDL dist function!
+    ----------------------------------------------------------------------- '''
     if (n % 2 == 0):
-        xx += 0.5
+        xl = np.arange(n) - n//2 + 0.5
+    else:
+        xl = np.arange(n) - n//2
+
     if (m % 2 == 0):
-        yy += 0.5
+        yl = np.arange(m) - m//2 + 0.5
+    else:
+        yl = np.arange(m) - m//2
+
+    xx,yy = np.meshgrid(xl, yl)
     return np.arctan2(xx,yy)
 
-# ------------------------------------------------
-# Returns the Zernike coefficients and exponents 
-# for a given mode (n,m)
-# ------------------------------------------------
 def zer_coeff(n,m):
+    ''' -----------------------------------------------------------------------
+    Returns the Zernike coefficients and exponents for a given mode (n,m)
+    ----------------------------------------------------------------------- '''
     coeffs, pows = [], []
 
     for s in range((n-m)//2+1):

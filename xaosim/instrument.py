@@ -207,8 +207,11 @@ class instrument(object):
                             shdir=shdir, shm_root="hex_disp",
                             csz=self.csz, na0=15)
 
-            self.atmo = None
-            
+            self.atmo = Phscreen(name="lab", csz=self.csz,
+                                 lsz=self.tel.pdiam, r0=0.2, L0=10.0,
+                                 fc=5, correc=10.0,
+                                 shdir=shdir, shmf='phscreen.wf.shm')
+
         # ---------------------------------------------------------------------
         # NO template? Go manual.
         # ---------------------------------------------------------------------
@@ -296,8 +299,8 @@ class instrument(object):
         # ---------------------------------------------------------------------
         if  "kernel" in self.name.lower():
             self.cam.start(delay,
-                           dm_shmf=self.shdir+"hex_disp.wf.shm")#,
-        #atmo_shmf=self.shdir+"phscreen.wf.shm")
+                           dm_shmf=self.shdir+"hex_disp.wf.shm",
+                           atmo_shmf=self.shdir+"phscreen.wf.shm")
 
         # ---------------------------------------------------------------------
         if "PHARO" in self.name:

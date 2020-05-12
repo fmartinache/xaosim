@@ -249,6 +249,7 @@ class Cam(object):
 
         wf *= np.sqrt(self.signal / self.pupil.sum()) # signal scaling
         wf *= self.pupil                              # apply the pupil mask
+        self._phs = phs * self.pupil                  # store total phase
         self.fc_pa = self.sft(wf)                     # focal plane cplx ampl
         img = np.abs(self.fc_pa)**2                   # intensity
         frm = img[self.y0:self.y1, self.x0:self.x1]   # image crop
