@@ -101,9 +101,9 @@ class MyWindow(QtGui.QMainWindow):
         self.pwr   = 1.0
         self.mycmap = cm.gray
 
-        self.packed = True
-        if "scexao" in platform.node():
-            self.packed = False
+        self.packed = False
+        # if "scexao" in platform.node():
+        #     self.packed = False
 
         super(MyWindow, self).__init__()
         if not os.path.exists(conf_dir + 'shmimview.ui'):
@@ -222,6 +222,7 @@ class MyWindow(QtGui.QMainWindow):
         
         msg = "<pre>\n"
 
+        self.mySHM.read_keywords()
         for ii,kwd in enumerate(self.mySHM.kwds):
             msg += "%10s : %10s \n" % (kwd['name'], kwd['value'])
 

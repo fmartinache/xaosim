@@ -322,7 +322,7 @@ class HexDM(DM):
         dmmap = np.zeros((msz, msz), dtype=np.float64)
         xx,yy = np.meshgrid(np.arange(msz)-msz/2, np.arange(msz)-msz/2)
         
-        xy = pupil.hex_grid_coords(nr+1, astep, rot=0)
+        xy = pupil.hex_grid_coords(nr+1, astep, rot=2*np.pi/3)
         xy[0] += self.dx * astep # optional offset of
         xy[1] += self.dy * astep # the DM position
         xy = np.round(xy).astype(np.int)
@@ -360,7 +360,7 @@ class HexDM(DM):
         xx,yy = np.meshgrid(np.arange(self.csz)-self.csz/2,
                             np.arange(self.csz)-self.csz/2)
         
-        xy = pupil.hex_grid_coords(nr+1, self.astep, rot=0)
+        xy = pupil.hex_grid_coords(nr+1, self.astep, rot=2*np.pi/3)
         xy[0] += self.dx * self.astep # optional offset of
         xy[1] += self.dy * self.astep # the DM position
         xy = np.round(xy).astype(np.int)

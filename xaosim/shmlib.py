@@ -131,7 +131,7 @@ Table taken from Python 3 documentation, section 7.1.2.2.
 '''
 
 class shm:
-    def __init__(self, fname=None, data=None, verbose=False, packed=True, nbkw=0):
+    def __init__(self, fname=None, data=None, verbose=False, packed=False, nbkw=0):
         ''' --------------------------------------------------------------
         Constructor for a SHM (shared memory) object.
 
