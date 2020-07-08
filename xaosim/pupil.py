@@ -235,9 +235,9 @@ def uniform_disk(ys, xs, radius, between_pix=False):
     returns an (ys x xs) array with a uniform disk of radius "radius".
     ---------------------------------------------------------  '''
     if between_pix is False:
-        xx,yy  = np.meshgrid(np.arange(xs)-xs/2, np.arange(ys)-ys/2)
+        xx,yy  = np.meshgrid(np.arange(xs)-xs//2, np.arange(ys)-ys//2)
     else:
-        xx,yy  = np.meshgrid(np.arange(xs)-xs/2+0.5, np.arange(ys)-ys/2+0.5)
+        xx,yy  = np.meshgrid(np.arange(xs)-xs//2+0.5, np.arange(ys)-ys//2+0.5)
     mydist = np.hypot(yy,xx)
     res = np.zeros_like(mydist)
     res[mydist <= radius] = 1.0
