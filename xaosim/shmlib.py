@@ -300,17 +300,22 @@ class shm:
         self.mtdata['bimname'] = bytes(self.mtdata['imname'], 'ascii')
         self.buf[0:80]        = struct.pack('80s', self.mtdata['bimname'])
 
-    def close(self,):
+    def close(self, erase_file=True):
         ''' --------------------------------------------------------------
         Clean close of a SHM data structure link
 
-        Clean close of buffer, release the file descriptor.
+        - Clean close of buffer
+        - release the file descriptor
+        - delete shared memory file
         -------------------------------------------------------------- '''
         c0   = self.c0_offset                     # counter offset
         self.buf[c0:c0+8]   = struct.pack('Q', 0) # set counter to zero
         self.buf.close()
         os.close(self.fd)
         self.fd = 0
+        if erase_file:
+            os.remove(self.fname)
+            print("%s erased!" % (self.fname,))
         return(0)
 
     def read_meta_data(self, verbose=True):

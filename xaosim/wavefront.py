@@ -30,6 +30,20 @@ def sin_map(sz, ncx, ncy, phi=0.0):
     return res
 
 # ======================================================================
+def mksin_vector(xymask, ncx, ncy, phi=0.0):
+    ''' -----------------------------------------------------------
+    returns a 1D vector of size xymask.shape[0], containing the
+    local values of a sinusoidal wavefront computed for the xymask
+    set of coordinates.
+    ----------------------------------------------------------- '''
+    xmax = np.abs(xymask[:,0]).max()
+    ymax = np.abs(xymask[:,1]).max()
+    fcx = ncx / xmax
+    fcy = ncy / ymax
+    res = np.sin(np.pi*(fcx * xymask[:,0] + fcy * xymask[:,1]) + phi)
+    return res
+
+# ======================================================================
 def poke_map(sz, dx, dy, ww=3, bw=5):
     ''' -----------------------------------------------------------
     Produces a 2D poke map for the aperture at the position dx, dy

@@ -351,21 +351,8 @@ class instrument(object):
 
         time.sleep(self.delay)
         
-        # --- the different DM channels ---
-        for i in range(self.DM.nch):
-            test = 0
-            exec("test = self.DM.disp%d.fd" % (i,))
-            if (test != 0):
-                exec("self.DM.disp%d.close()" % (i,))
-
-        time.sleep(self.delay)
-        # --- the camera itself ---
-        if (self.cam.shm_cam.fd != 0):
-            self.cam.shm_cam.close()
-
-        # --- more DM simulation relevant files ---
-        if (self.DM.disp.fd != 0):
-            self.DM.disp.close()
+        # --- the DM ---
+        self.DM.close()
 
         try:
             test = self.DM.volt.fd
@@ -373,6 +360,11 @@ class instrument(object):
                 self.DM.volt.close()
         except:
             pass
+
+        time.sleep(self.delay)
+        # --- the camera itself ---
+        if (self.cam.shm_cam.fd != 0):
+            self.cam.shm_cam.close()
 
         try:
             test = self.imcam.shm_cam.fd

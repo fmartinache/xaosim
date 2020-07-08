@@ -15,7 +15,7 @@ import threading
 from .shmlib import shm
 from . import pupil
 import time
-
+import pdb
 
 # ===========================================================
 # ===========================================================
@@ -127,6 +127,17 @@ class DM(object):
         rwf = int(np.round(self.astep*self.dms))
         self.infun = influ_fun(iftype=self.iftype,
                                sz=self._if_asz, ifs=self._if_psz)
+        
+    # ==================================================
+    def close(self,):
+        ''' ----------------------------------------
+        Closes all the shared memory data structures
+        for the DM (channels, global disp and wft)
+        ---------------------------------------- '''
+        self.disp.close()
+        for ii in range(self.nch):
+            exec('self.disp%d.close()' % (ii))
+        self.wft.close()
         
     # ==================================================
     def get_counter_channel(self, chn):
@@ -262,7 +273,8 @@ class HexDM(DM):
     # ==================================================
     def __init__(self, instrument="KERNEL", nr=1, nch=8, 
                  shm_root="hex_disp", shdir="/dev/shm/",
-                 csz=512, na0=15.0, dx=0.0, dy=0.0):
+                 csz=512, na0=15.0, dx=0.0, dy=0.0,
+                 srad=323.75):
         ''' -----------------------------------------
         Constructor for instance of deformable mirror
         Parameters:
@@ -278,6 +290,12 @@ class HexDM(DM):
         - na0: number of segments across pupil diam
         - dx: DM L/R misalignment (in actuators)
         - dy: DM U/D misalignment (in actuators)
+        - srad: segment radius (in microns)
+
+        Note:
+        ----
+        Segment radius is defined as that of the circle that 
+        would be inscribed inside one segment.
         ----------------------------------------- '''
         self.keepgoing = False
         self.dmtype = "hex"
@@ -305,12 +323,13 @@ class HexDM(DM):
         self.na0 = na0
         self.csz = csz
         self.astep = csz // na0
+        self.srad = srad
         self.shm_root = shm_root
 
     # ==================================================
     def map2D(self, msz, astep):
         ''' -----------------------------------------
-        Returns a 2D displacement map of the DM.
+        Returns a 2D displacement map of the Hex DM.
 
         Parameters:
         ----------
@@ -321,7 +340,12 @@ class HexDM(DM):
         arad  = astep/np.sqrt(3)
         dmmap = np.zeros((msz, msz), dtype=np.float64)
         xx,yy = np.meshgrid(np.arange(msz)-msz/2, np.arange(msz)-msz/2)
+
+        scoeff = 2*self.srad*1e-3/self.astep # slope coefficient
         
+        ttx = self.dmd[:,1] / scoeff
+        tty = self.dmd[:,2] / scoeff
+
         xy = pupil.hex_grid_coords(nr+1, astep, rot=2*np.pi/3)
         xy[0] += self.dx * astep # optional offset of
         xy[1] += self.dy * astep # the DM position
@@ -330,30 +354,39 @@ class HexDM(DM):
         seg = pupil.uniform_hex(msz, msz, arad).T
                 
         for ii in range(self.ns):
-            seg1 = seg*(self.dmd[ii,0]*seg + self.dmd[ii,1]*xx + self.dmd[ii,2]*yy)
-            dmmap += np.roll(np.roll(seg1, xy[0,ii], axis=0), xy[1,ii], axis=1)
+            seg1 = seg*(self.dmd[ii,0]*seg + ttx[ii]*xx + tty[ii]*yy)
+            seg1 = np.roll(np.roll(seg1, xy[0,ii], axis=0), xy[1,ii], axis=1)
+            dmmap += seg1
 
         return dmmap
 
     # ==================================================
-    def map2D_2_TTP(self, dmmap=None):
+    def disp_2_PTT(self, dmap=None):
         ''' -------------------------------------------------------------------
-        Turns the provided DM map into tip-tilt-piston commands for the DM
-        *in the same unit as the input*
+        Turns the provided DM displacement map into piston-tip-tilt commands 
+        for the HexDM
 
         Parameters:
         ----------
-        - dmmap: the DM map
+        - dmap: displacement map the HexDM will attempt to approximate
+                 expressed in microns
+
+        Returns: a (nseg x 3) numpy array that contains:
+        -------
+        - the piston in the first column (in microns)
+        - the x-tip  in the second column (in mrad)
+        - the y-tilt in the third column (in mrad)
         
         Remarks:
         -------
 
-        Before being sent to the DM, the commands need to be properly scaled:
-        if the input is in radians, the commands must be converted into microns
-        for the DM, and take into account the x2 factor of the reflection! 
+        To convert a desired wavefront (in radians), into displacement
+        map on the DM (in microns), things must be scaled by the wavelength.
+        Just make sure to also take the x2 effect the DM displacement has
+        on the wavefront. 
 
-        The scaling parameter will typically be *lambda / (4*PI)*
-        ----------------------------------------- '''
+        The required scaling parameter will typically be *lambda / (4*PI)*
+        ------------------------------------------------------------------- '''
         nr    = self.nr
         arad  = self.astep/np.sqrt(3)
 
@@ -365,19 +398,62 @@ class HexDM(DM):
         xy[1] += self.dy * self.astep # the DM position
         xy = np.round(xy).astype(np.int)
 
+        scoeff = 2*self.srad*1e-3/self.astep # slope coefficient
+        
         # centered reference segment
         seg = pupil.uniform_hex(self.csz, self.csz, arad).T
-
+        
         dmd0 = np.zeros_like(self.dmd0) # empty tip-tilt-piston commands
 
         xxnorm = xx[seg > 0].dot(xx[seg > 0])
         yynorm = yy[seg > 0].dot(yy[seg > 0])
         
         for ii in range(self.ns):
-            tmp = np.roll(np.roll(dmmap, -xy[0,ii], axis=0), -xy[1,ii], axis=1)
+            tmp = np.roll(np.roll(dmap, -xy[0,ii], axis=0), -xy[1,ii], axis=1)
             dmd0[ii,0] = tmp[seg > 0].mean()
-            dmd0[ii,1] = tmp[seg > 0].dot(xx[seg > 0]) / xxnorm
-            dmd0[ii,2] = tmp[seg > 0].dot(yy[seg > 0]) / yynorm
+            dmd0[ii,1] = scoeff * tmp[seg > 0].dot(xx[seg > 0]) / xxnorm
+            dmd0[ii,2] = scoeff * tmp[seg > 0].dot(yy[seg > 0]) / yynorm
 
         return dmd0
     
+    # ========================================================================
+    def ptt_2_actuator(ptt, piston_only=True):
+        ''' -------------------------------------------------------------------
+        converts an array of piston+tip-tilt segment states and converts them
+        into actuator commands for the Hex BMC mirror. 
+        
+        Parameters:
+        ----------
+        - ptt:         the array of piston+tip-tilt command for all segments
+        - piston_only: option to apply piston correction only (easier scenario) 
+        
+        Remarks:
+        -------
+        - #1 Assumes that the ptt commands are expressed in:
+        - microns (for the piston)
+        - mrad (for the tip-tilt)
+        - #2 Commands sent to the DM are floating point numbers 0 <= cmd <= 1.
+        ------------------------------------------------------------------- '''
+        csz = 1024 # command size
+        nseg = 169 # number of segments
+        again = 4.0 # actuator gain: 4 um per ADU
+        cmd =  np.zeros(csz)
+
+        a0 = self.srad # 323.75 um for the BMC Hex DM
+        mat = np.array([[1,                0,  a0   ],
+                        [1, -np.sqrt(3)/2*a0, -a0/2 ],
+                        [1,  np.sqrt(3)/2*a0, -a0/2]])
+        
+        # for the piston only scenario
+        if piston_only:
+            for ii in range(nseg):
+                cmd[ii*3]   = ptt[ii,0]
+                cmd[ii*3+1] = ptt[ii,0]
+                cmd[ii*3+2] = ptt[ii,0]
+
+        else:
+            print("TBD!!")
+
+        cmd /= again # command converted into BMC HexDM ADU
+
+        return cmd

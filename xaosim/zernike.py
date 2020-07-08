@@ -163,7 +163,8 @@ def mkzer_vector(n, m, xymask):
     (coeffs, pows) = zer_coeff(n,np.abs(m))
     res = np.zeros(xymask.shape[0])
     rho = np.sqrt(xymask[:,0]**2+xymask[:,1]**2)
-
+    rho /= rho.max()
+    
     for i in range(np.size(coeffs)):
         res += coeffs[i] * (rho)**pows[i]
 
