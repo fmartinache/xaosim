@@ -157,12 +157,13 @@ def meta_hex_grid_coords(xy, nr=1, radius=10):
         return(np.array((xs, ys)))
 
 # ==================================================================
-def hex_mirror_model(nra, nrs, step, fill=False, rot=0.0):
+def hex_mirror_model(nra, nrs, step, fill=False, rot=0.0, cobs=True):
     ''' -------------------------------------------------------------------
     - nra : the number of rings for the global aperture (rings)
     - nrs : the number of rings per segment
     - step: the minimum distance between two segments centers (float)
     - fill: adds points at gaps between segments and on the edges
+    - cobs: central obstruction (central segment missing?) (bool)
     ------------------------------------------------------------------- '''
 
     RR = np.array([[np.cos(rot), -np.sin(rot)],
@@ -171,8 +172,9 @@ def hex_mirror_model(nra, nrs, step, fill=False, rot=0.0):
     # the (coarse) *array* geometry
     # =============================
     seg1 = hex_grid_coords(nra, step)
-    keep = (np.abs(seg1[0,:]) > 1e-3) + (np.abs(seg1[1,:]) > 1e-3)
-    seg1 = seg1[:,keep]
+    if cobs is True:
+        keep = (np.abs(seg1[0,:]) > 1e-3) + (np.abs(seg1[1,:]) > 1e-3)
+        seg1 = seg1[:,keep]
 
     radius = step / (np.sqrt(3) * nrs)
     if fill is True:

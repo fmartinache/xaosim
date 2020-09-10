@@ -110,6 +110,13 @@ def piston_map(sz, coords, hrad, between_pix=True, piston=None):
 # ======================================================================
 def kolmo(rnd, fc, ld0, correc=1e0, rms=0.1):
     ''' -----------------------------------------------------------
+    WARNING: "legacy" function kept here as a reference. 
+
+    Use atmo_screen() instead!
+
+    This function was adapted to a FFT based diffraction simulation, 
+    which is no longer used by this package.
+    
     Does a Kolmogorov wavefront simulation with partial AO correction.
     
     Wavefront simulation of total size "size", following Kolmogorov statistics
@@ -148,7 +155,7 @@ def kolmo(rnd, fc, ld0, correc=1e0, rms=0.1):
     return test
 
 # ==================================================================
-def atmo_screen(isz, ll, r0, L0, fc=25, correc=1.0):
+def atmo_screen(isz, ll, r0, L0, fc=25, correc=1.0, pdiam=None):
     ''' -----------------------------------------------------------
     The Kolmogorov - Von Karman phase screen generation algorithm.
 
@@ -168,10 +175,17 @@ def atmo_screen(isz, ll, r0, L0, fc=25, correc=1.0):
     - L0     : the outer scale parameter (in meters)
     - fc     : DM cutoff frequency (in lambda/D)
     - correc : correction of wavefront amplitude (factor 10, 100, ...)
+    - pdiam  : pupil diameter (in meters)
 
     Returns: two independent phase screens, available in the real and 
     imaginary part of the returned array.
+
+    Remarks:
+    -------
+    If pdiam is not specified, the code assumes that the diameter of
+    the pupil is equal to the extent of the phase screen "ll".
     ----------------------------------------------------------- '''
+    
     phs = 2*np.pi * (np.random.rand(isz, isz) - 0.5)
 
     xx, yy = np.meshgrid(np.arange(isz)-isz/2, np.arange(isz)-isz/2)
@@ -181,7 +195,11 @@ def atmo_screen(isz, ll, r0, L0, fc=25, correc=1.0):
 
     modul = (rr**2 + (ll/L0)**2)**(-11/12.)
 
-    in_fc = (rr < fc)
+    if pdiam is not None:
+        in_fc = (rr < fc * ll / pdiam)
+    else:
+        in_fc = (rr < fc)
+
     modul[in_fc] /= correc
     
     screen = ifft(modul * np.exp(1j*phs)) * isz**2

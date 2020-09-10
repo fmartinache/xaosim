@@ -417,7 +417,7 @@ class HexDM(DM):
         return dmd0
     
     # ========================================================================
-    def ptt_2_actuator(ptt, piston_only=True):
+    def ptt_2_actuator(self, ptt, piston_only=True):
         ''' -------------------------------------------------------------------
         converts an array of piston+tip-tilt segment states and converts them
         into actuator commands for the Hex BMC mirror. 

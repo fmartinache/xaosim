@@ -11,7 +11,7 @@ generic camera like the Shack Hartman camera.
 '''
 import numpy as np
 import threading
-from . import pupil
+from .pupil import uniform_disk as ud
 from .shmlib import shm
 import time
 
@@ -57,7 +57,7 @@ class Cam(object):
     def __init__(self, name="SCExAO_chuck", csz=200, ysz=256, xsz=320,
                  pupil=None,
                  pdiam=7.92, pscale=10.0, wl=1.6e-6,
-                 shmf="scexao_ircam.im.shm", shdir="/dev/shm"):
+                 shmf="scexao_ircam.im.shm", shdir="/dev/shm/"):
         ''' Default instantiation of a cam object:
 
         -------------------------------------------------------------------
@@ -79,7 +79,7 @@ class Cam(object):
         self.xsz     = xsz
 
         if pupil is None:
-            self.pupil = pupil.uniform_disk(csz, csz, csz//2, True)
+            self.pupil = ud(csz, csz, csz//2, True)
         else:
             self.pupil = pupil
 
@@ -219,8 +219,14 @@ class Cam(object):
 
     # =========================================================================
     def make_image(self, phscreen=None, dmmap=None):
-        ''' Produce an image, given a certain number of phase screens
+        ''' Produces an image, given a certain number of phase screens, 
+        and updates the shared memory data structure that the camera 
+        instance is linked to with that image
+
+        If you need something that returns the image, you have to use the
+        class member method get_image(), after having called this method.
         -------------------------------------------------------------------
+
         Parameters:
         ----------
         - atmo    : (optional) atmospheric phase screen
@@ -401,7 +407,7 @@ class SHCam(Cam):
         self.mls     = mls                 # u-lens array size (in lenses)
 
         if pupil is None:
-            self.pupil = pupil.uniform_disk(csz, csz, csz//2, True)
+            self.pupil = ud(csz, csz, csz//2, True)
         else:
             self.pupil = pupil
 
