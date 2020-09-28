@@ -160,15 +160,15 @@ def mkzer_vector(n, m, xymask):
     returns a 1D vector of size xymask.shape(0),
     containing the n,m Zernike polynomial
    ------------------------------------------ '''
-    (coeffs, pows) = zer_coeff(n,np.abs(m))
+    (coeffs, pows) = zer_coeff(n, np.abs(m))
     res = np.zeros(xymask.shape[0])
-    rho = np.sqrt(xymask[:,0]**2+xymask[:,1]**2)
+    rho = np.sqrt(xymask[:, 0]**2+xymask[:, 1]**2)
     rho /= rho.max()
-    
+
     for i in range(np.size(coeffs)):
         res += coeffs[i] * (rho)**pows[i]
 
-    azi = np.pi + np.arctan2(xymask[:,0], xymask[:,1])
+    azi = np.arctan2(xymask[:, 0], xymask[:, 1])
 
     if m > 0:
         res *= np.cos(m * azi)
@@ -180,31 +180,40 @@ def mkzer_vector(n, m, xymask):
     res /= rms0
     return res
 
+
 def mkzer1_vector(j, xymask):
     '''------------------------------------------
     returns a 1D vector of size xymask.shape(0),
     containing the j^th Zernike polynomial
    ------------------------------------------ '''
-    (n,m) = noll_2_zern(j)
+    (n, m) = noll_2_zern(j)
     return(mkzer_vector(n, m, xymask))
 
+
 def mk_pattern(n, m):
-    x,y = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
-    dd = np.roll(np.hypot(y,x), 8, axis=0)
+    '''------------------------------------------
+    returns an ad-hoc pattern which I do not
+    remember what it corresponds to. Probably
+    should discard this function.
+   ------------------------------------------ '''
+    x, y = np.meshgrid(np.arange(n)-n/2, np.arange(m)-m/2)
+    dd = np.roll(np.hypot(y, x), 8, axis=0)
     b = np.zeros_like(dd)
     b[dd < 12] = 1.0
-    b[dd <  7] = 0.0
+    b[dd < 7] = 0.0
     b[x < 0] = 0.0
-    b[10:45,20:25] = 1.0
-    b[10:15,17:28] = 1.0
+    b[10:45, 20:25] = 1.0
+    b[10:15, 17:28] = 1.0
     return(b)
 
 # --------------------------------------------------------
 #                     main program
 # --------------------------------------------------------
+
+
 if __name__ == "__main__":
 
-    size=512
+    size = 512
     vmax = 150.0
 
-    zer = mkzer(3,3, 32,32, "cos",0)
+    zer = mkzer(3, 3, 32, 32, "cos", 0)
