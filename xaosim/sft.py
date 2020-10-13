@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 ''' ===================================================================
-Test dodumentation for SFT, the "slow" Fourier Transform using the 
+Test dodumentation for SFT, the "slow" Fourier Transform using the
 theory described in: http://adsabs.harvard.edu/abs/2007OExpr..1515935S
 
 Example:
@@ -15,15 +16,17 @@ over a +/- 10 lambda/D field of view
 
 >> lyot = sft.isft(ca_focal, 200, 20)
 
-Will compute the complex amplitude in a pupil plane located downstream 
-from the previous focal plane, using only the spatial frequencies 
+Will compute the complex amplitude in a pupil plane located downstream
+from the previous focal plane, using only the spatial frequencies
 present in the array that was previously computed.
 '''
 
 import numpy as np
+i2pi = 1j*2*np.pi
+
 
 # ===================================================================
-def sft(A2, NB, m, inv=False):
+def sft(A2, NB, m, inv=False, btwn_pix=False):
     ''' --------------------------------------------------------------
     Explicit Fourier Transform, using the theory described in:
     http://adsabs.harvard.edu/abs/2007OExpr..1515935S
@@ -38,29 +41,34 @@ def sft(A2, NB, m, inv=False):
     - NB : the linear size of the result array (integer)
     - m  : m/2 = maximum spatial frequency to be computed (in l/D)
     - inv: boolean (direct or inverse) see the definition of isft()
+    - btwn_pix: if True, computation centered between pixels
+
+    Returns the Fourier transform of A2 over an array of size NBxNB
     -------------------------------------------------------------- '''
 
-    NA    = np.shape(A2)[0]
-    m     = float(m)
+    offset = 0
+    if btwn_pix is True:
+        offset = 0.5
+
+    NA = np.shape(A2)[0]
+    m = float(m)
     coeff = m/(NA*NB)
-    
-    U = np.zeros((1,NB))
-    X = np.zeros((1,NA))
-    
-    X[0,:] = (1./NA)*(np.arange(NA)-NA/2.)
-    U[0,:] =  (m/NB)*(np.arange(NB)-NB/2.)
-    
+
+    U = np.zeros((1, NB))
+    X = np.zeros((1, NA))
+
+    X[0, :] = (1./NA)*(np.arange(NA)-NA/2.0+offset)
+    U[0, :] = (m/NB)*(np.arange(NB)-NB/2.0+offset)
+
     sign = -1.0
     if inv:
         sign = 1.0
-        
-    A1 = np.exp(sign * 2j*np.pi* np.dot(np.transpose(U),X))
-    A3 = np.exp(sign * 2j*np.pi* np.dot(np.transpose(X),U))
 
-    B  = np.dot(np.dot(A1,A2),A3)
+    A1 = np.exp(sign*i2pi*np.dot(np.transpose(U), X))
+    A3 = np.exp(sign*i2pi*np.dot(np.transpose(X), U))
 
+    B = A1.dot(A2.dot(A3))
     return coeff*np.array(B)
-
 
 
 # ===================================================================

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-''' 
+'''
 ===============================================================================
-This is the deformable mirror simulation module of XAOSIM. 
+This is the deformable mirror simulation module of XAOSIM.
 
 It defines two classes of deformable mirrors:
 - square grid membrane mirror (ALPAO or BMC membrane)
@@ -232,7 +232,7 @@ class DM(object):
         dmmap = np.zeros((msz, msz), dtype=np.float64)
         dms = self.dms
 
-        if self.iftype is not "": # influence function specified!
+        if self.iftype != "":  # influence function specified!
             amap = self.dmd.copy()
 
             dsz = int(self._if_asz//2 + astep) # extra space to accomodate infl. func.

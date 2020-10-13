@@ -16,11 +16,13 @@ plt.rcParams['image.origin'] = "lower"
 
 # ===========================================================
 # ===========================================================
+
+
 class Telescope(object):
     ''' Telecope class
     ---------------------------------------------------------------------------
     This may be overengineering at this point but there may be something to
-    gained from gathering information that is relevant to a telescope into a 
+    gained from gathering information that is relevant to a telescope into a
     separate object.
 
     One interest is that several cameras fed by the same telescope can have
@@ -38,19 +40,19 @@ class Telescope(object):
         self.tname = "EMPTY"    # telescope name
         self.iname = name       # instrument name
         self.pdiam = 1.0        # telescope diameter (meters)
-        self.PA    = 0.0        # pupil angle (degrees)
+        self.PA = 0.0           # pupil angle (degrees)
         self.rebin = rebin      # rebin for "grey model"
-        self.size  = size
+        self.size = size
         self.radius = radius
         self.update_pupil()     # update pupil array
-        
+
     # ==================================================
     def get_pupil(self,):
         return self.pupil
-    
+
     # ==================================================
     def update_pupil(self,):
-        ''' Uupdate telescope properties based on provided name
+        ''' Update telescope properties based on provided name
         ---------------------------------------------------------------------------
 
         Default config: an unbostructed  1-meter diameter telescope
@@ -58,34 +60,41 @@ class Telescope(object):
         '''
         rsz = self.size * self.rebin
         rrad = self.radius * self.rebin
-        
+
         if "scexao" in self.iname.lower():
             self.tname = "Subaru"
             self.iname = "SCExAO"
-            self.pdiam = 7.92 # telescope pupil diameter
-            self.PA    = 0.0
+            self.pdiam = 7.92  # telescope pupil diameter
+            self.PA = 0.0
             pup = 1.0 * pupil.subaru(
                 rsz, rsz, rrad, spiders=True, between_pix=True)
-            
+
         elif "hst" in self.iname.lower():
-            self.tname ="HST"
-            self.iname ="NICMOS1"
+            self.tname = "HST"
+            self.iname = "NICMOS1"
             self.pdiam = 2.4
             self.PA = 45.0
             tmp = pupil.HST_NIC1(2*rsz, rrad, ang=self.PA)
-            pup = tmp[rsz//2:rsz//2+rsz,rsz//2:rsz//2+rsz]
-        
+            pup = tmp[rsz//2:rsz//2+rsz, rsz//2:rsz//2+rsz]
+
         elif "ciao" in self.iname.lower():
-            self.tname ="C2PU"
-            self.iname ="CIAO"
+            self.tname = "C2PU"
+            self.iname = "CIAO"
             self.pdiam = 1.0
             self.PA = 0.0
             pup = pupil.uniform_disk(rsz, rsz, rrad)
 
+        elif "gravity" in self.iname.lower():
+            self.tname = "VLT"
+            self.iname = "GRAVITY+"
+            self.pdiam = 8.0
+            self.PA    = 0.0
+            pup = pupil.VLT(rsz, rsz, rrad)
+
         elif "pharo" in self.iname.lower():
             self.tname = "Hale"
-            self.iname ="PHARO"
-            self.pdiam = 4.978 # PHARO standard cross diameter
+            self.iname = "PHARO"
+            self.pdiam = 4.978  # PHARO standard cross diameter
             self.PA = 0.0
             pup = pupil.PHARO(rsz, rrad, mask="std", between_pix=True, ang=0)
             if "med" in self.iname.lower():
@@ -96,7 +105,7 @@ class Telescope(object):
             self.iname = "NIRC2"
             self.pdiam = 10.2
             self.PA = -20.5
-            th0 = self.PA*np.pi/180.0 # pupil angle
+            th0 = self.PA*np.pi/180.0  # pupil angle
             pup = pupil.segmented_aperture(rsz, 3, int(rrad/3), rot=th0)
 
         elif "jwst" in self.iname.lower():
@@ -111,36 +120,38 @@ class Telescope(object):
         elif "kernel" in self.iname.lower():
             self.tname = "BENCH"
             self.iname = "KERNEL"
-            self.pdiam = 9.75 # BMC DM largest dimension (in mm)
+            self.pdiam = 9.75  # BMC DM largest dimension (in mm)
             self.PA = 0.0
             pup = pupil.KBENCH(rsz, pscale=self.pdiam/rsz)
-        
+
         else:
             print("Default: unbstructed circular aperture")
             pup = pupil.uniform_disk(rsz, rsz, rrad)
-            
+
         self.pupil = pup.reshape(
             self.size, self.rebin, self.size, self.rebin).mean(3).mean(1)
 
 # =============================================================================
 # =============================================================================
+
+
 class instrument(object):
     # ==================================================
-    def __init__(self, name="SCExAO", shdir='/dev/shm/', csz=256):
-        
+    def __init__(self, name="SCExAO", shdir='/dev/shm/', csz=320):
+
         self.name = name
         self.shdir = shdir
-        self.delay = 0.1 # sets the default simulation frame rate
-        self.csz = csz   # computation size for wavefronts
+        self.delay = 0.1  # sets the default simulation frame rate
+        self.csz = csz    # computation size for wavefronts
 
         self.tel = Telescope(
-            name=self.name, size=self.csz, radius=self.csz//2,rebin=5)
+            name=self.name, size=self.csz, radius=self.csz//2, rebin=5)
 
         self.cam  = None
         self.cam2 = None
         self.DM   = None
         self.atmo = None
-        
+
         # ---------------------------------------------------------------------
         # SCExAO template: DM, atmo and IR camera
         # ---------------------------------------------------------------------
@@ -150,10 +161,10 @@ class instrument(object):
                            pupil=self.tel.pupil,
                            pdiam=self.tel.pdiam, pscale=16.7, wl=1.6e-6,
                            shdir=shdir, shmf="scexao_ircam.im.shm")
-            
+
             self.DM = DM(instrument="SCExAO", dms=50, nch=8,
                          csz=self.csz, na0=49, iftype="cosine")
-            
+
             self.atmo = Phscreen(name="MaunaKea", csz=self.csz,
                                  lsz=self.tel.pdiam, r0=0.5, L0=10.0,
                                  fc=24.5, correc=10.0,
@@ -165,9 +176,9 @@ class instrument(object):
         elif "ciao" in self.name.lower():
             print("Creating %s" % (self.name,))
             self.cam = SHCam(name="CIAO_ASO", csz=self.csz, dsz=128,
-                            pupil=self.tel.pupil, wl=1.6e-6,
-                            shdir=shdir, shmf="ciao_shcam.im.shm")
-            
+                             pupil=self.tel.pupil, wl=1.6e-6,
+                             shdir=shdir, shmf="ciao_shcam.im.shm")
+
             self.DM = DM(instrument="CIAO", dms=11, nch=8,
                          csz=self.csz, na0=10, iftype="cone")
 
@@ -179,7 +190,29 @@ class instrument(object):
             self.atmo = Phscreen(name="Calern", csz=self.csz,
                                  lsz=self.tel.pdiam, r0=0.2, L0=10.0,
                                  fc=5, correc=1.0,
-                                 shdir=shdir, shmf='phscreen.wf.shm')
+                                 shdir=shdir, shmf='calern.wf.shm')
+
+        # ---------------------------------------------------------------------
+        # GRAVITY+ template: DM, atmosphere and 2 cameras (vis SH + imager IR)
+        # ---------------------------------------------------------------------
+        elif "gravity" in self.name.lower():
+            print("Creating %s" % (self.name,))
+            self.cam = SHCam(name="GRAVITY_WFS", csz=self.csz, dsz=240,
+                             mls=40, pupil=self.tel.pupil, wl=0.7e-6,
+                             shdir=shdir, shmf="gravity_shcam.im.shm")
+
+            self.DM = DM(instrument="GRAVITY_WFS", dms=40, nch=8,
+                         csz=self.csz, na0=39, iftype="cone")
+
+            self.cam2 = Cam(name="VLT_IR", csz=self.csz, ysz=256, xsz=256,
+                            pupil=self.tel.pupil,
+                            pdiam=self.tel.pdiam, pscale=10, wl=1.6e-6,
+                            shdir=shdir, shmf="vlt_ircam.im.shm")
+
+            self.atmo = Phscreen(name="Paranal", csz=self.csz,
+                                 lsz=self.tel.pdiam, r0=0.5, L0=10.0,
+                                 fc=20, correc=1.0,
+                                 shdir=shdir, shmf='paranal.wf.shm')
 
         # ---------------------------------------------------------------------
         # HST NICMOS 1 template: one camera (no atmo, no DM) !
@@ -190,9 +223,9 @@ class instrument(object):
                            pupil=self.tel.pupil,
                            pdiam=self.tel.pdiam, pscale=43, wl=1.9e-6,
                            shdir=shdir, shmf="hst_nic1.im.shm")
-            
-            self.DM   = None # no DM onboard
-            self.atmo = None # no atmosphere in space!
+
+            self.DM   = None  # no DM onboard
+            self.atmo = None  # no atmosphere in space!
 
         # ---------------------------------------------------------------------
         # KERNEL bench template: HexDM, and IR camera
@@ -217,10 +250,10 @@ class instrument(object):
         # ---------------------------------------------------------------------
         else:
             print("""No template for '%s':
-            check your spelling or... 
+            check your spelling or...
             specify characteristics by hand!""" % (self.name))
-            self.DM  = None
-            self.cam = None
+            self.DM   = None
+            self.cam  = None
             self.atmo = None
 
     # ==================================================
@@ -232,7 +265,7 @@ class instrument(object):
         ------------------------------------------------------------------- '''
 
         cmd_args = ""
-        
+
         if self.DM is not None:
             self.DM.update(verbose=False)
             cmd_args += "dmmap = self.DM.wft.get_data(),"
@@ -243,11 +276,11 @@ class instrument(object):
         exec("self.cam.make_image(%s)" % (cmd_args,))
 
         return(self.cam.get_image())
-    
+
     # ==================================================
     def start(self, delay=0.1):
         ''' A function that starts all the components *servers*
-        
+
         To each component is associated a server that periodically updates
         information on the global DM shape and the camera image, based on
         the status of the atmospheric phase screen and the different DM
@@ -271,33 +304,45 @@ class instrument(object):
         ------------------------------------------------------------------- '''
 
         self.delay = delay
-        
+
         if self.DM is not None:
             self.DM.start(delay)
-            
+
         if self.atmo is not None:
             self.atmo.start(delay)
 
         # ---------------------------------------------------------------------
-        if  (self.name == "CIAO"):
+        if (self.name == "CIAO"):
             self.cam.start(
                 delay,
                 dm_shmf=self.shdir+"dmdisp.wf.shm",
-                atmo_shmf=self.shdir+"phscreen.wf.shm")
-            
+                atmo_shmf=self.shdir+"calern.wf.shm")
+
             self.cam2.start(
                 delay,
                 dm_shmf=self.shdir+"dmdisp.wf.shm",
-                atmo_shmf=self.shdir+"phscreen.wf.shm")
-            
+                atmo_shmf=self.shdir+"calern.wf.shm")
+
         # ---------------------------------------------------------------------
-        if  (self.name == "SCExAO"):
+        if "gravity" in self.name.lower():
+            self.cam.start(
+                delay,
+                dm_shmf=self.shdir+"dmdisp.wf.shm",
+                atmo_shmf=self.shdir+"paranal.wf.shm")
+
+            self.cam2.start(
+                delay,
+                dm_shmf=self.shdir+"dmdisp.wf.shm",
+                atmo_shmf=self.shdir+"paranal.wf.shm")
+
+        # ---------------------------------------------------------------------
+        if (self.name == "SCExAO"):
             self.cam.start(delay=delay,
                            dm_shmf=self.shdir+"dmdisp.wf.shm",
                            atmo_shmf=self.shdir+"phscreen.wf.shm")
 
         # ---------------------------------------------------------------------
-        if  "kernel" in self.name.lower():
+        if "kernel" in self.name.lower():
             self.cam.start(delay,
                            dm_shmf=self.shdir+"hex_disp.wf.shm",
                            atmo_shmf=self.shdir+"phscreen.wf.shm")
@@ -316,7 +361,7 @@ class instrument(object):
         -------------------------------------------------------------------
         Usage:
         -----
-        
+
         >> myinstrument.stop()
 
         Simple no?
@@ -328,8 +373,8 @@ class instrument(object):
         if self.cam is not None:
             self.cam.stop()
         if self.cam2 is not None:
-                self.cam2.stop()
-            
+            self.cam2.stop()
+
     # ==================================================
     def close(self,):
         ''' A function to call after the work with the severs is over
@@ -339,18 +384,18 @@ class instrument(object):
         ------------------------------------------------------------------- '''
         # --- just in case ---
         self.stop()
-        
+
         # --- the atmospheric phase screen ---
         try:
             test = self.atmo.shm_phs.fd
             if (self.atmo.shm_phs.fd != 0):
                 self.atmo.shm_phs.close()
 
-        except:
+        except AttributeError:
             print("No atmo to shut down")
 
         time.sleep(self.delay)
-        
+
         # --- the DM ---
         self.DM.close()
 
@@ -358,7 +403,7 @@ class instrument(object):
             test = self.DM.volt.fd
             if (test != 0):
                 self.DM.volt.close()
-        except:
+        except AttributeError:
             pass
 
         time.sleep(self.delay)
@@ -370,11 +415,10 @@ class instrument(object):
             test = self.imcam.shm_cam.fd
             if (self.imcam.shm_cam.fd != 0):
                 self.imcam.shm_cam.close()
-        except:
+        except AttributeError:
             print("no secondary camera to shut down")
             pass
-        
+
         self.cam  = None
         self.DM   = None
         self.atmo = None
-        
