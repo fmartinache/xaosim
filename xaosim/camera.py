@@ -359,25 +359,26 @@ class Cam(object):
         # ----------------------------------------------------
         while self.keepgoing:
             nochange = True  # lazy flag up!
-            cmd_args = ""  # arguments sent to self.make_image()
 
             if dm_map is not None:
                 test = dm_map.get_counter()
+                dmmap = dm_map.get_data()
                 if test != dm_cntr:
-                    cmd_args += "dmmap = dm_map.get_data(),"
                     dm_cntr = test
                     nochange = False
+            else:
+                dmmap = None
 
             if atm_map is not None:
                 test = atm_map.get_counter()
+                atmomap = atm_map.get_data()
                 if test != atm_cntr:
-                    cmd_args += "phscreen = atm_map.get_data(),"
                     atm_cntr = test
                     nochange = False
+            else:
+                atmomap = None
 
-            if nochange is True:
-                cmd_args += "nochange=True,"
-            exec("self.make_image(%s)" % (cmd_args,))
+            self.make_image(phscreen=atmomap, dmmap=dmmap, nochange=nochange)
             self.tlog.log()
             time.sleep(self.delay)
 
