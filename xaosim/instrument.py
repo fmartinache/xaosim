@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import threading
 import time
 from . import pupil
 
-from .camera import Cam, SHCam
+from .camera import Cam, SHCam, CoroCam
 from .DM import DM, HexDM
 from .atmosphere import Phscreen
 
@@ -88,7 +87,7 @@ class Telescope(object):
             self.tname = "VLT"
             self.iname = "GRAVITY+"
             self.pdiam = 8.0
-            self.PA    = 0.0
+            self.PA = 0.0
             pup = pupil.VLT(rsz, rsz, rrad)
 
         elif "pharo" in self.iname.lower():
@@ -96,9 +95,11 @@ class Telescope(object):
             self.iname = "PHARO"
             self.pdiam = 4.978  # PHARO standard cross diameter
             self.PA = 0.0
-            pup = pupil.PHARO(rsz, rrad, mask="std", between_pix=True, ang=0)
+            pup = pupil.PHARO(
+                rsz, rrad, mask="std", between_pix=True, ang=0)
             if "med" in self.iname.lower():
-                pup = pupil.PHARO(rsz, rrad, mask="med", between_pix=True, ang=-2)
+                pup = pupil.PHARO(
+                    rsz, rrad, mask="med", between_pix=True, ang=-2)
 
         elif "nirc2" in self.iname.lower():
             self.tname = "Keck2"
@@ -147,9 +148,9 @@ class instrument(object):
         self.tel = Telescope(
             name=self.name, size=self.csz, radius=self.csz//2, rebin=5)
 
-        self.cam  = None
+        self.cam = None
         self.cam2 = None
-        self.DM   = None
+        self.DM = None
         self.atmo = None
 
         # ---------------------------------------------------------------------
@@ -157,10 +158,19 @@ class instrument(object):
         # ---------------------------------------------------------------------
         if "scexao" in self.name.lower():
             print("Creating %s" % (self.name,))
-            self.cam = Cam(name="SCExAO_chuck", csz=self.csz, ysz=256, xsz=320,
-                           pupil=self.tel.pupil,
-                           pdiam=self.tel.pdiam, pscale=16.7, wl=1.6e-6,
-                           shdir=shdir, shmf="scexao_ircam.im.shm")
+            if "coro" in self.name.lower():
+                lstop = pupil.subaru_lstop(self.csz)
+                self.cam = CoroCam(
+                    "SCExAO_coro", csz=self.csz, ysz=256, xsz=320,
+                    pupil=self.tel.pupil, lstop=lstop,
+                    pdiam=self.tel.pdiam, pscale=16.7, wl=1.6e-6,
+                    shdir=shdir, shmf="scexao_corocam.im.shm")
+            else:
+                self.cam = Cam(
+                    name="SCExAO_chuck", csz=self.csz, ysz=256, xsz=320,
+                    pupil=self.tel.pupil,
+                    pdiam=self.tel.pdiam, pscale=16.7, wl=1.6e-6,
+                    shdir=shdir, shmf="scexao_ircam.im.shm")
 
             self.DM = DM(instrument="SCExAO", dms=50, nch=8,
                          csz=self.csz, na0=49, iftype="cosine")
@@ -224,7 +234,7 @@ class instrument(object):
                            pdiam=self.tel.pdiam, pscale=43, wl=1.9e-6,
                            shdir=shdir, shmf="hst_nic1.im.shm")
 
-            self.DM   = None  # no DM onboard
+            self.DM = None    # no DM onboard
             self.atmo = None  # no atmosphere in space!
 
         # ---------------------------------------------------------------------
@@ -252,8 +262,8 @@ class instrument(object):
             print("""No template for '%s':
             check your spelling or...
             specify characteristics by hand!""" % (self.name))
-            self.DM   = None
-            self.cam  = None
+            self.DM = None
+            self.cam = None
             self.atmo = None
 
     # ==================================================
@@ -336,7 +346,7 @@ class instrument(object):
                 atmo_shmf=self.shdir+"paranal.wf.shm")
 
         # ---------------------------------------------------------------------
-        if (self.name == "SCExAO"):
+        if "scexao" in self.name.lower():
             self.cam.start(delay=delay,
                            dm_shmf=self.shdir+"dmdisp.wf.shm",
                            atmo_shmf=self.shdir+"phscreen.wf.shm")

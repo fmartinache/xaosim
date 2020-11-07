@@ -11,7 +11,7 @@ generic camera like the Shack Hartman camera.
 '''
 import numpy as np
 import threading
-from .pupil import uniform_disk as ud
+from .pupil import uniform_disk as ud, _xyic
 from .shmlib import shm
 import time
 
@@ -92,26 +92,26 @@ class Cam(object):
         else:
             self.pupil = pupil
 
-        self.pdiam  = pdiam                 # pupil diameter in meters
-        self.pscale = pscale                # plate scale in mas/pixel
-        self.wl     = wl                    # wavelength in meters
-        self.frm0   = np.zeros((ysz, xsz))  # initial camera frame
-        self.shmf   = shdir+shmf            # the shared memory "file"
-        self.shdir  = shdir                 # the shared memory directory
+        self.pdiam = pdiam                # pupil diameter in meters
+        self.pscale = pscale              # plate scale in mas/pixel
+        self.wl = wl                      # wavelength in meters
+        self.frm0 = np.zeros((ysz, xsz))  # initial camera frame
+        self.shmf = shdir+shmf            # the shared memory "file"
+        self.shdir = shdir                # the shared memory directory
 
-        self.btwn_pixel = False            # fourier comp. centering option
-        self.phot_noise = False            # photon noise flag
-        self.signal     = 1e6              # default # of photons in frame
-        self.keepgoing  = False            # flag for the camera server
-        self.dm_shmf    = None             # associated DM shared memory file
-        self.atmo_shmf  = None             # idem for atmospheric phase screen
-        self.corono     = False            # if True: perfect coronagraph
+        self.btwn_pixel = False           # fourier comp. centering option
+        self.phot_noise = False           # photon noise flag
+        self.signal = 1e6                 # default # of photons in frame
+        self.keepgoing = False            # flag for the camera server
+        self.dm_shmf = None               # associated DM shared memory file
+        self.atmo_shmf = None             # idem for atmospheric phase screen
+        self.corono = False               # if True: perfect coronagraph
 
         # allocate/connect shared memory data structure
         self.shm_cam = shm(self.shmf, data=self.frm0, verbose=False)
 
         self.tlog = TimeLogger(lsize=20)
-        
+
         # final tune-up
         self.update_cam()
 
@@ -147,6 +147,7 @@ class Cam(object):
             except AttributeError:
                 print("SFT aux array to be refreshed")
                 pass
+
         if between_pixel is not None:
             self.btwn_pixel = between_pixel
             try:
@@ -157,8 +158,6 @@ class Cam(object):
 
         self.ld0 = self.wl/self.pdiam*3.6e6/dtor/self.pscale  # l/D (in pixels)
         self.nld0 = self.isz / self.ld0           # nb of l/D across the frame
-
-        tmp = self.sft(np.zeros((self.csz, self.csz)))
 
         if wasgoing:
             self.start(
@@ -205,7 +204,7 @@ class Cam(object):
         No need to "center" the data on the origin.
         -------------------------------------------------------------- '''
         try:
-            test = self._A1  # look for existence of auxilliary arrays
+            _ = self._A1  # look for existence of auxilliary arrays
         except AttributeError:
             print("updating the Fourier auxilliary arrays")
             NA = self.csz
@@ -232,6 +231,25 @@ class Cam(object):
         return np.array(B)
 
     # =========================================================================
+    def off_pointing(self, offx, offy):
+        ''' Produces the phase map that will induce the specified off axis
+        pointing in number of pixels along the x and y axes.
+
+        Parameters:
+        ----------
+        - offx: horizontal pointing offset (in pixels)
+        - offy: vertical poiting offset (in pixels)
+
+        Returns:
+        -------
+        a 2D array that can directly be fed as the phscreen argument of
+        make_image()
+        '''
+        yy, xx = _xyic(self.csz, self.csz, between_pix=self.btwn_pixel)
+        offset = (offx*xx + offy*yy)*2*np.pi/(self.csz*self.ld0)
+        return offset
+
+    # =========================================================================
     def make_image(self, phscreen=None, dmmap=None, nochange=False):
         ''' Produces an image, given a certain number of phase screens,
         and updates the shared memory data structure that the camera
@@ -252,8 +270,8 @@ class Cam(object):
         # nothing to do? skip the computation!
         if (nochange is True) and (self.phot_noise is False):
             return
-        # mu2phase: DM displacement in microns to radians (x2 reflection)
 
+        # mu2phase: DM displacement in microns to radians (x2 reflection)
         mu2phase = 4.0 * np.pi / self.wl / 1e6  # convert microns to phase
 
         phs = np.zeros((self.csz, self.csz), dtype=np.float64)  # phase map
@@ -402,33 +420,106 @@ class CoroCam(Cam):
 
     This class inherits from the more generic Cam class.
     '''
-# =============================================================================
-# =============================================================================
 
     # =========================================================================
-    def __init__(self, name="SCExAO_coro", csz=200, ysz=256, xsz=320,
+    def __init__(self, name="SCExAO_coro", csz=400, ysz=256, xsz=320,
                  pupil=None, fpm=None, lstop=None,
                  pdiam=7.92, pscale=10.0, wl=1.6e-6,
                  shmf="scexao_coro.im.shm", shdir="/dev/shm/"):
         ''' Default instantiation of a coronagraphic cam object:
-
         -------------------------------------------------------------------
+
         Parameters are:
         --------------
         - name    : a string describing the camera ("instrument + camera name")
         - csz     : array size for Fourier computations
         - (ys,xs) : the dimensions of the actually produced image
-        - pupil   : a csz x csz array containing the pupil
-        - fpm     : a csz x csz array containing the pupil
-        - lstop   : a csz x csz array containing the pupil
+        - pupil   : (csz x csz) the pupil (possibly apodized)
+        - fpm     : (csz x csz) the focal plane mask
+        - lstop   : (csz x csz) the lyot stop
 
         - pscale  : the plate scale of the image, in mas/pixel
         - wl      : the central wavelength of observation, in meters
         - shmf    : the name of the file used to point the shared memory
         - shdir   : the name of the shared memory directory
         ------------------------------------------------------------------- '''
-        self.update_cam()
+        super(CoroCam, self).__init__(
+            name=name, csz=csz, ysz=ysz, xsz=xsz, pupil=pupil,
+            pdiam=pdiam, pscale=pscale, wl=wl, shmf=shmf, shdir=shdir)
 
+        del self.corono  # no ideal coronagraph here!
+        self.btwn_pixel = True
+        self.isz = self.csz  # full Fourier computation
+        self.x0 = (self.isz - self.xsz) // 2
+        self.y0 = (self.isz - self.ysz) // 2
+        self.x1 = self.x0 + self.xsz
+        self.y1 = self.y0 + self.ysz
+
+        # handling of the coronagraph parts
+        if fpm is None:
+            self.fpm = 1.0 - ud(csz, csz, 4*self.ld0, between_pix=True)
+            print("Default focal plane mask: 4 l/D Lyot radius")
+        else:
+            self.fpm = fpm
+
+        if lstop is None:
+            self.lstop = ud(csz, csz, 0.9*csz//2, between_pix=True)
+            print("Default lyot stop: undersized 10 %")
+        else:
+            self.lstop = lstop
+
+    # =========================================================================
+    def make_image(self, phscreen=None, dmmap=None, nochange=False):
+        ''' Produces a CORONAGRAPHIC image, given a certain number of
+        phase screens, and updates the shared memory data structure that
+        the camera instance is linked to with that image
+
+        If you need something that returns the image, you have to use the
+        class member method get_image(), after having called this method.
+        -------------------------------------------------------------------
+
+        Parameters:
+        ----------
+        - atmo    : (optional) atmospheric phase screen
+        - qstatic : (optional) a quasi-static aberration
+        - dmmap   : (optional) a deformable mirror displacement map
+        - nochange: (optional) a flag to skip the computation!
+
+        !!!!!!! NOT THOROUGHLY TESTED YET !!!!!!!
+        ------------------------------------------------------------------- '''
+
+        # nothing to do? skip the computation!
+        if (nochange is True) and (self.phot_noise is False):
+            return
+
+        # mu2phase: DM displacement in microns to radians (x2 reflection)
+        mu2phase = 4.0 * np.pi / self.wl / 1e6  # convert microns to phase
+
+        phs = np.zeros((self.csz, self.csz), dtype=np.float64)  # phase map
+
+        if dmmap is not None:  # a DM map was provided
+            phs = mu2phase * dmmap
+
+        if phscreen is not None:  # a phase screen was provided
+            phs += phscreen
+
+        wf = np.exp(1j*phs)
+        wf *= np.sqrt(self.signal / self.pupil.sum())  # signal scaling
+        wf *= self.pupil                               # apply the pupil mask
+        self._b4m = self.sft(wf)
+        self._afm = self._b4m * self.fpm
+        self._b4l = self.sft(self._afm)
+        self._afl = self._b4l * self.lstop
+        self._cca = self.sft(self._afl)
+
+        img = np.abs(self._cca)**2                   # intensity
+        frm = img[self.y0:self.y1, self.x0:self.x1]  # image crop
+
+        if self.phot_noise:  # need to be recast to fit original format
+            frm = np.random.poisson(lam=frm.astype(np.float64), size=None)
+
+        # push the image to shared memory
+        self.shm_cam.set_data(frm.astype(self.shm_cam.npdtype))
 
 # =============================================================================
 # =============================================================================
@@ -504,35 +595,34 @@ class SHCam(Cam):
         -------
         ------------------------------------------------------------------- '''
 
-        mu2phase = 4.0 * np.pi / self.wl / 1e6 # microns to phase (x2)
-        nm2phase = 2.0 * np.pi / self.wl / 1e9 # nanometers to phase
+        mu2phase = 4.0 * np.pi / self.wl / 1e6  # microns to phase (x2)
 
         mls = self.mls
-        cdiam = int(self.cdiam) # SH cell computation "diameter"
-        idiam = int(self.xs / mls) # SH cell image size "diameter"
+        cdiam = int(self.cdiam)     # SH cell computation "diameter"
+        idiam = int(self.xs / mls)  # SH cell image size "diameter"
 
-        phs = np.zeros((self.sz, self.sz))      # full phase map
-        frm = np.zeros((self.ys, self.xs)) # oversized array
+        phs = np.zeros((self.sz, self.sz))  # full phase map
+        frm = np.zeros((self.ys, self.xs))  # oversized array
 
         # -------------------------------------------------------------------
-        if dmmap is not None: # a DM map was provided
+        if dmmap is not None:  # a DM map was provided
             phs = mu2phase * dmmap
 
         # -------------------------------------------------------------------
-        if phscreen is not None: # a phase screen was provided
-            phs += phscreen #* nm2phase
+        if phscreen is not None:  # a phase screen was provided
+            phs += phscreen
 
         # -------------------------------------------------------------------
         wf = np.exp(1j*phs)
-        wf[self.pupil == False] = 0+0j # re-apply the pupil map
+        wf[self.pupil == False] = 0+0j  # re-apply the pupil map
 
         xl0 = int(cdiam - idiam / 2)
 
-        for ii in range(mls * mls): # cycle ove rthe u-lenses
+        for ii in range(mls * mls):  # cycle ove rthe u-lenses
             wfs = np.zeros((2*cdiam, 2*cdiam), dtype=complex)
             li, lj = ii // mls, ii % mls  # i,j indices for the u-lens
             pi0 = int(np.round(li * self.xs / mls))
-            pj0 = int(np.round(lj * self.xs / mls)) # image corner pixel
+            pj0 = int(np.round(lj * self.xs / mls))  # image corner pixel
 
             ci0 = li * cdiam
             cj0 = lj * cdiam
@@ -545,10 +635,6 @@ class SHCam(Cam):
                                                     xl0:xl0+idiam]
 
         # -------------------------------------------------------------------
-        # temp0 = Image.fromarray(frm)
-        # temp1 = temp0.resize((self.ys, self.xs), resample=1)
-        # frm = np.array(temp1).astype(self.shm_cam.npdtype)
-
         if frm.sum() > 0:
             frm *= self.signal / frm.sum()
 
