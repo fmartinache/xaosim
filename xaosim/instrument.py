@@ -173,7 +173,7 @@ class instrument(object):
                     shdir=shdir, shmf="scexao_ircam.im.shm")
 
             self.DM = DM(instrument="SCExAO", dms=50, nch=8,
-                         csz=self.csz, na0=49, iftype="cosine")
+                         shdir=shdir, csz=self.csz, na0=49, iftype="cosine")
 
             self.atmo = Phscreen(name="MaunaKea", csz=self.csz,
                                  lsz=self.tel.pdiam, r0=0.5, L0=10.0,
@@ -190,7 +190,7 @@ class instrument(object):
                              shdir=shdir, shmf="ciao_shcam.im.shm")
 
             self.DM = DM(instrument="CIAO", dms=11, nch=8,
-                         csz=self.csz, na0=10, iftype="cone")
+                         shdir=shdir, csz=self.csz, na0=10, iftype="cone")
 
             self.cam2 = Cam(name="HIPiC", csz=self.csz, ysz=256, xsz=256,
                             pupil=self.tel.pupil,
@@ -212,7 +212,7 @@ class instrument(object):
                              shdir=shdir, shmf="gravity_shcam.im.shm")
 
             self.DM = DM(instrument="GRAVITY_WFS", dms=40, nch=8,
-                         csz=self.csz, na0=39, iftype="cone")
+                         shdir=shdir, csz=self.csz, na0=39, iftype="cone")
 
             self.cam2 = Cam(name="VLT_IR", csz=self.csz, ysz=256, xsz=256,
                             pupil=self.tel.pupil,

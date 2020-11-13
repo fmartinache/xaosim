@@ -55,6 +55,7 @@ def influ_fun(iftype="cosine", sz=512, ifs=10):
         res = np.outer(px, px)
     return res
 
+
 class DM(object):
     ''' -------------------------------------------------------------------
     Deformable mirror class
@@ -63,7 +64,7 @@ class DM(object):
     ------------------------------------------------------------------- '''
 
     # ==================================================
-    def __init__(self, instrument="SCExAO", dms=50, nch=8, 
+    def __init__(self, instrument="SCExAO", dms=50, nch=8,
                  shm_root="dmdisp", shdir="/dev/shm/",
                  csz=256, na0=50.0, dx=0.0, dy=0.0,
                  iftype="", ifr0=1.0):

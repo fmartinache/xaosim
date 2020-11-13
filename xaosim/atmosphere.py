@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 ''' ====================================================================
-This is the atmospheric simulation module of XAOSIM. 
+This is the atmospheric simulation module of XAOSIM.
 
 It defines a generic atmospheric phase screen class that is to be used
 in dynamic simulations.
@@ -13,7 +13,7 @@ import time
 from . import wavefront as wft
 from .shmlib import shm
 
-# ===========================================================
+
 # ===========================================================
 class Phscreen(object):
     '''Atmospheric Kolmogorov-type phase screen.
@@ -40,7 +40,7 @@ class Phscreen(object):
 
     '''
     # ==================================================
-    def __init__(self, name="MaunaKea", csz = 512,
+    def __init__(self, name="MaunaKea", csz=512,
                  lsz=8.0, r0=0.2, L0=10.0,
                  fc=24.5, correc=1.0,
                  shmf='phscreen.wf.shm', shdir='/dev/shm/'):
@@ -59,48 +59,47 @@ class Phscreen(object):
         - shdir : location of the shm "files"
         -----------------------------------------------------
         '''
-        self.shmf    = shmf
-        self.shdir   = shdir
-        self.csz     = csz
-        self.lsz     = lsz
-        self.r0      = r0
-        self.L0      = L0
-        
-        self.rms_i   = 0.0
-        self.correc  = correc
-        self.fc      = fc
-        self.kolm    = wft.atmo_screen(csz, lsz, r0, L0, fc, correc).real
-        
-        self.qstatic = np.zeros((self.csz, self.csz))
-        self.shm_phs = shm(shdir + shmf,
-                           data = self.qstatic, verbose=False)
+        self.shmf = shmf
+        self.shdir = shdir
+        self.csz = csz
+        self.lsz = lsz
+        self.r0 = r0
+        self.L0 = L0
 
-        self.kolm2   = np.tile(self.kolm, (2,2))
-        #self.kolm2   = self.kolm2[:self.sz+self.pdiam,:self.sz+self.pdiam]
+        self.rms_i = 0.0
+        self.correc = correc
+        self.fc = fc
+        self.kolm = wft.atmo_screen(csz, lsz, r0, L0, fc, correc).real
+
+        self.qstatic = np.zeros((self.csz, self.csz))
+        self.shm_phs = shm(
+            shdir + shmf, data=self.qstatic, verbose=False)
+
+        self.kolm2 = np.tile(self.kolm, (2, 2))
+        # self.kolm2 = self.kolm2[:self.sz+self.pdiam,:self.sz+self.pdiam]
 
         self.keepgoing = False
 
-        self.offx = 0 # x-offset on the "large" phase screen array
-        self.offy = 0 # y-offset on the "large" phase screen array
+        self.offx = 0  # x-offset on the "large" phase screen array
+        self.offy = 0  # y-offset on the "large" phase screen array
 
-        self.ttc     = False   # Tip-tilt correction flag
-        
+        self.ttc = False   # Tip-tilt correction flag
+
         # auxilliary array (for tip-tilt correction)
-        self.xx, self.yy  = np.meshgrid(np.arange(self.csz)-self.csz//2,
-                                        np.arange(self.csz)-self.csz//2)
+        self.xx, self.yy = np.meshgrid(np.arange(self.csz)-self.csz//2,
+                                       np.arange(self.csz)-self.csz//2)
         self.xxnorm2 = np.sum(self.xx**2)
         self.yynorm2 = np.sum(self.yy**2)
-        
+
     # ==============================================================
     def start(self, delay=0.1):
         ''' ----------------------------------------
-        High-level accessor to start the thread of 
+        High-level accessor to start the thread of
         the phase screen server infinite loop
         ---------------------------------------- '''
         if not self.keepgoing:
 
-            self.kolm2   = np.tile(self.kolm, (2,2))
-            #self.kolm2   = self.kolm2[:self.sz+self.pdiam,:self.sz+self.pdiam]
+            self.kolm2 = np.tile(self.kolm, (2, 2))
 
             self.keepgoing = True
             t = threading.Thread(target=self.__loop__, args=(delay,))
@@ -112,14 +111,13 @@ class Phscreen(object):
     # ==============================================================
     def freeze(self):
         ''' ----------------------------------------
-        High-level accessor to interrupt the thread 
+        High-level accessor to interrupt the thread
         of the phase screen server infinite loop
         ---------------------------------------- '''
         if self.keepgoing:
             self.keepgoing = False
         else:
             print("The *ATMO* server was frozen")
-
 
     # ==============================================================
     def stop(self):
@@ -135,7 +133,6 @@ class Phscreen(object):
         else:
             print("The *ATMO* server was not running")
 
-
     # ==============================================================
     def set_qstatic(self, qstatic=None):
         if qstatic is not None:
@@ -148,7 +145,7 @@ class Phscreen(object):
                     self.csz, self.csz, str(self.qstatic.dtype)))
 
             # if simulation is not already active, update phase screen!
-            if self.keepgoing == False:
+            if not self.keepgoing:
                 self.shm_phs.set_data(self.qstatic)
 
         else:
@@ -158,7 +155,6 @@ class Phscreen(object):
     def update_screen(self, correc=None, fc=None, r0=None, L0=None):
         ''' ------------------------------------------------
         Generic update of the properties of the phase-screen
-        
         ------------------------------------------------ '''
         if r0 is not None:
             self.r0 = r0
@@ -171,19 +167,19 @@ class Phscreen(object):
 
         if fc is not None:
             self.fc = fc
-            
-        self.kolm    = wft.atmo_screen(
+
+        self.kolm = wft.atmo_screen(
             self.csz, self.lsz, self.r0, self.L0, self.fc, self.correc).real
 
-        self.kolm2   = np.tile(self.kolm, (2,2))
+        self.kolm2 = np.tile(self.kolm, (2, 2))
 
         if self.keepgoing is False:
             # case that must be adressed:
             # amplitude changed when atmo is frozen!
             subk = self.kolm2[self.offx:self.offx+self.csz,
                               self.offy:self.offy+self.csz].copy()
-            
-            if self.ttc is True:            
+
+            if self.ttc is True:
                 ttx = np.sum(subk*self.xx) / self.xxnorm2
                 tty = np.sum(subk*self.yy) / self.yynorm2
                 subk -= ttx * self.xx + tty * self.yy
@@ -218,4 +214,3 @@ class Phscreen(object):
             self.rms_i = subk.std()
             self.shm_phs.set_data(subk + self.qstatic)
             time.sleep(delay)
-
