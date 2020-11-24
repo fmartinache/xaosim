@@ -262,9 +262,6 @@ class instrument(object):
             print("""No template for '%s':
             check your spelling or...
             specify characteristics by hand!""" % (self.name))
-            self.DM = None
-            self.cam = None
-            self.atmo = None
 
     # ==================================================
     def snap(self):
@@ -274,17 +271,17 @@ class instrument(object):
         features of xaosim.
         ------------------------------------------------------------------- '''
 
-        cmd_args = ""
+        dmmap = None
+        phscreen = None
 
         if self.DM is not None:
             self.DM.update(verbose=False)
-            cmd_args += "dmmap = self.DM.wft.get_data(),"
+            dmmap = self.DM.wft.get_data()
 
         if self.atmo is not None:
-            cmd_args += 'phscreen = self.atmo.shm_phs.get_data()'
+            phscreen = self.atmo.shm_phs.get_data()
 
-        exec("self.cam.make_image(%s)" % (cmd_args,))
-
+        self.cam.make_image(dmmap=dmmap, phscreen=phscreen)
         return(self.cam.get_image())
 
     # ==================================================
@@ -305,63 +302,29 @@ class instrument(object):
 
         >> myinstrument.start()
 
-        When doing things by hand, for an instrument that is not a preset,
-        one needs to be careful when plugging the camera to the right shared
-        memory data structures.
-
-        Refer to the code below and the component class definitions to see
-        how to proceed with your custom system.
         ------------------------------------------------------------------- '''
 
         self.delay = delay
 
+        dm_shmf = None
+        atmo_shmf = None
+
         if self.DM is not None:
             self.DM.start(delay)
+            dm_shmf = self.shdir+self.DM.shmf
 
         if self.atmo is not None:
             self.atmo.start(delay)
+            atmo_shmf = self.shdir+self.atmo.shmf
 
-        # ---------------------------------------------------------------------
-        if (self.name == "CIAO"):
-            self.cam.start(
-                delay,
-                dm_shmf=self.shdir+"dmdisp.wf.shm",
-                atmo_shmf=self.shdir+"calern.wf.shm")
+        self.cam.start(delay=delay,
+                       dm_shmf=dm_shmf,
+                       atmo_shmf=atmo_shmf)
 
-            self.cam2.start(
-                delay,
-                dm_shmf=self.shdir+"dmdisp.wf.shm",
-                atmo_shmf=self.shdir+"calern.wf.shm")
-
-        # ---------------------------------------------------------------------
-        if "gravity" in self.name.lower():
-            self.cam.start(
-                delay,
-                dm_shmf=self.shdir+"dmdisp.wf.shm",
-                atmo_shmf=self.shdir+"paranal.wf.shm")
-
-            self.cam2.start(
-                delay,
-                dm_shmf=self.shdir+"dmdisp.wf.shm",
-                atmo_shmf=self.shdir+"paranal.wf.shm")
-
-        # ---------------------------------------------------------------------
-        if "scexao" in self.name.lower():
-            self.cam.start(delay=delay,
-                           dm_shmf=self.shdir+"dmdisp.wf.shm",
-                           atmo_shmf=self.shdir+"phscreen.wf.shm")
-
-        # ---------------------------------------------------------------------
-        if "kernel" in self.name.lower():
-            self.cam.start(delay,
-                           dm_shmf=self.shdir+"hex_disp.wf.shm",
-                           atmo_shmf=self.shdir+"phscreen.wf.shm")
-
-        # ---------------------------------------------------------------------
-        if "PHARO" in self.name:
-            self.cam.start(delay,
-                           dm_shmf=self.shdir+"p3k_dm.wf.shm",
-                           atmo_shmf=self.shdir+"palomar_atmo.wf.shm")
+        if self.cam2 is not None:
+            self.cam2.start(delay=delay,
+                            dm_shmf=dm_shmf,
+                            atmo_shmf=atmo_shmf)
 
     # ==================================================
     def stop(self,):
@@ -422,13 +385,14 @@ class instrument(object):
             self.cam.shm_cam.close()
 
         try:
-            test = self.imcam.shm_cam.fd
-            if (self.imcam.shm_cam.fd != 0):
-                self.imcam.shm_cam.close()
+            _ = self.cam2.shm_cam.fd
+            if (_ != 0):
+                self.cam2.shm_cam.close()
         except AttributeError:
             print("no secondary camera to shut down")
             pass
 
-        self.cam  = None
-        self.DM   = None
+        self.cam = None
+        self.cam2 = None
+        self.DM = None
         self.atmo = None

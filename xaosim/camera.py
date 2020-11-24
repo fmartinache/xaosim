@@ -582,8 +582,10 @@ class SHCam(Cam):
         self.cdiam = self.sz / np.float(self.mls)  # oversized u-lens size
         self.rcdiam = np.round(self.cdiam).astype(int)
 
+        self.tlog = TimeLogger(lsize=20)
+
     # ==================================================
-    def make_image(self, phscreen=None, dmmap=None):
+    def make_image(self, phscreen=None, dmmap=None, nochange=False):
         ''' Produce a SH image, given a certain number of phase screens
         -------------------------------------------------------------------
         Parameters:
@@ -594,6 +596,9 @@ class SHCam(Cam):
 
         -------
         ------------------------------------------------------------------- '''
+        # nothing to do? skip the computation!
+        if (nochange is True) and (self.phot_noise is False):
+            return
 
         mu2phase = 4.0 * np.pi / self.wl / 1e6  # microns to phase (x2)
 
@@ -614,7 +619,7 @@ class SHCam(Cam):
 
         # -------------------------------------------------------------------
         wf = np.exp(1j*phs)
-        wf[self.pupil == False] = 0+0j  # re-apply the pupil map
+        wf[self.pupil == 0.0] = 0+0j  # re-apply the pupil map
 
         xl0 = int(cdiam - idiam / 2)
 

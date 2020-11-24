@@ -2,7 +2,7 @@
 
 
 ''' --------------------------------------------------------------------------
-20170730: 
+20170730:
 --------
 
 Shared memory viewer.
@@ -19,15 +19,10 @@ import threading
 import pyqtgraph as pg
 import sys
 import numpy as np
-from numpy.linalg import solve
 from xaosim.shmlib import shm
 import matplotlib.cm as cm
 
 import os
-import shutil
-import platform
-
-from PIL import Image
 
 # =====================================================================
 home = os.getenv('HOME')
@@ -35,7 +30,7 @@ conf_dir = home+'/.config/xaosim/'
 
 # =====================================================================
 # =====================================================================
-myqt = 0 # to have myqt as a global variable
+myqt = 0  # to have myqt as a global variable
 
 def main():
     global myqt
@@ -45,8 +40,9 @@ def main():
     myqt.gui_quit()
     sys.exit()
 
+
 # =====================================================================
-#                               Tools 
+#                               Tools
 # =====================================================================
 def arr2im(arr, vmin=False, vmax=False, pwr=1.0, cmap=None, gamma=1.0):
     ''' ------------------------------------------
@@ -72,14 +68,13 @@ def arr2im(arr, vmin=False, vmax=False, pwr=1.0, cmap=None, gamma=1.0):
 
     arr2 = arr2**pwr
 
-    #cm.jet.set_gamma(0.1)
-    if cmap == None:
+    if cmap is None:
         mycmap = cm.jet
     else:
         mycmap = cmap
 
     res = mycmap(arr2)
-    res[:,:,3] = gamma
+    res[:, :, 3] = gamma
     return(res)
 
 
@@ -88,6 +83,7 @@ def arr2im(arr, vmin=False, vmax=False, pwr=1.0, cmap=None, gamma=1.0):
 # =====================================================================
 args = sys.argv[1:]
 
+
 class MyWindow(QtGui.QMainWindow):
     ''' ------------------------------------------------------
     This is the meat of the program: the class that drives
@@ -95,15 +91,11 @@ class MyWindow(QtGui.QMainWindow):
     ------------------------------------------------------ '''
     def __init__(self):
         global index
-        self.mySHM = None # handle for mmapped SHM file
-        self.vmin  = False
-        self.vmax  = False
-        self.pwr   = 1.0
+        self.mySHM = None  # handle for mmapped SHM file
+        self.vmin = False
+        self.vmax = False
+        self.pwr = 1.0
         self.mycmap = cm.gray
-
-        self.packed = False
-        # if "scexao" in platform.node():
-        #     self.packed = False
 
         super(MyWindow, self).__init__()
         if not os.path.exists(conf_dir + 'shmimview.ui'):
@@ -118,12 +110,12 @@ class MyWindow(QtGui.QMainWindow):
         self.gView_shm.hideAxis('bottom')
 
         self.imv_data = pg.ImageItem()
-        self.overlay  = pg.GraphItem()
-        
+        self.overlay = pg.GraphItem()
+
         self.gView_shm.addItem(self.imv_data)
-        
+
         # ==============================================
-        #             GUI widget actions 
+        #             GUI widget actions
         # ==============================================
         self.dspB_disp_min.valueChanged[float].connect(self.update_vmin)
         self.dspB_disp_max.valueChanged[float].connect(self.update_vmax)
@@ -134,12 +126,12 @@ class MyWindow(QtGui.QMainWindow):
         self.chB_nonlinear.stateChanged[int].connect(self.update_nonlinear)
 
         self.chB_dark_sub.stateChanged[int].connect(self.update_dark_state)
-        
-        self.cmB_cbar.addItems(['gray', 'hot', 'cool', 'bone', 'jet',
-                                'viridis', 'magma'])
+
+        self.cmB_cbar.addItems(
+            ['magma', 'gray', 'hot', 'cool', 'bone', 'jet', 'viridis'])
         self.cmB_cbar.activated[str].connect(self.update_cbar)
         self.cmB_cbar.setCurrentIndex(0)
-
+        self.update_cbar()
         # ==============================================
         #             top-menu actions
         # ==============================================
@@ -148,25 +140,31 @@ class MyWindow(QtGui.QMainWindow):
 
         self.actionOpen.triggered.connect(self.load_shm)
         self.actionLoadDark.triggered.connect(self.load_shm_drk)
-        
+
         if args is not []:
-            try:
-                self.mySHM = shm(str(args[0]), packed=self.packed)
+            target = str(args[0])
+            if os.path.isfile(target):
+                self.mySHM = shm(target)
                 self.live_counter = -1
                 self.naxis = self.mySHM.mtdata['naxis']
-                #print(self.mySHM.kwds)
-            except:
-                self.mySHM = None
-            try:
-                self.myslice = int(args[1])
-                self.myslice = min(self.myslice, self.mySHM.mtdata['size'][-1]-1)
-            except:
+                if self.mySHM.empty:
+                    self.mySHM = None
+
+            if len(args) > 1:
+                try:
+                    self.myslice = int(args[1])
+                except ValueError:
+                    print("Not a valid slice")
+                    self.myslice = 0
+                self.myslice = min(self.myslice,
+                                   self.mySHM.mtdata['size'][-1]-1)
+            else:
                 self.myslice = 0
 
         self.myDRK = None
         # ==============================================
         self.show()
-        
+
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.refresh_all)
         self.timer.start(100)
@@ -180,7 +178,7 @@ class MyWindow(QtGui.QMainWindow):
         cbar = str(self.cmB_cbar.currentText()).lower()
         try:
             exec('self.mycmap = cm.%s' % (cbar,))
-        except:
+        except AttributeError:
             self.mycmap = cm.jet
 
     # =========================================================
@@ -188,7 +186,7 @@ class MyWindow(QtGui.QMainWindow):
         self.vmin = False
         if self.chB_min.isChecked():
             self.vmin = self.dspB_disp_min.value()
-        
+
     # =========================================================
     def update_vmax(self):
         self.vmax = False
@@ -206,7 +204,7 @@ class MyWindow(QtGui.QMainWindow):
         if self.live_counter == self.mySHM.get_counter():
             self.live_counter -= 1
         pass
-    
+
     # =========================================================
     def refresh_img(self):
         self.imv_data.setImage(arr2im(self.data_img.T,
@@ -219,16 +217,23 @@ class MyWindow(QtGui.QMainWindow):
 
         pt_levels = [0, 5, 10, 20, 50, 75, 90, 95, 99, 100]
         pt_values = np.percentile(self.data_img, pt_levels)
-        
+
         msg = "<pre>\n"
 
         self.mySHM.read_keywords()
-        for ii,kwd in enumerate(self.mySHM.kwds):
+        if self.naxis == 3:
+            msg += "imsize = %d x %d x %d\n" % self.mySHM.mtdata["size"]
+        else:
+            msg += "imsize = %d x %d\n" % self.mySHM.mtdata["size"][1:]
+
+        for ii, kwd in enumerate(self.mySHM.kwds):
             msg += "%10s : %10s \n" % (kwd['name'], kwd['value'])
 
         for i, ptile in enumerate(pt_levels):
             msg += "p-tile %3d = %8.2f\n" % (ptile, pt_values[i])
-        msg +=     "img count  = %8d\n" % (self.mySHM.get_counter(),)
+
+        msg += "img count  = %8d\n" % (self.mySHM.get_counter(),)
+
         if add_msg is not None:
             msg += "%s\n" % (add_msg,)
         msg += "</pre>"
@@ -236,31 +241,30 @@ class MyWindow(QtGui.QMainWindow):
 
     # =========================================================
     def load_shm(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self, 'Load SHM file', 
-                                                  '/dev/shm/*.im.shm')[0]
-        
+        fname = QtGui.QFileDialog.getOpenFileName(
+            self, 'Load SHM file', '/dev/shm/*.im.shm')[0]
+
         if self.mySHM is not None:
-            self.mySHM.close()
             self.mySHM = None
-            
-        self.mySHM = shm(str(fname), packed=self.packed)
+
+        self.mySHM = shm(str(fname))
         self.live_counter = -1
         self.naxis = self.mySHM.mtdata['naxis']
         self.myslice = 0
         self.myDRK = np.zeros_like(self.mySHM.get_data())
-        
+
     # =========================================================
     def load_shm_drk(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self, 'Load SHM file for dark', 
-                                                  '/dev/shm/*.im.shm')[0]
-            
+        fname = QtGui.QFileDialog.getOpenFileName(
+            self, 'Load SHM file for dark', '/dev/shm/*.im.shm')[0]
+
         try:
-            temp = shm(str(fname), packed=self.packed)
+            temp = shm(str(fname))
             self.myDRK = temp.get_data()
-            temp.close()
+            temp = None
         except:
             self.myDRK = np.zeros_like(self.mySHM.get_data())
-            
+
     # =========================================================
     def refresh_all(self):
         ''' ----------------------------------------------------------
@@ -270,29 +274,30 @@ class MyWindow(QtGui.QMainWindow):
         add_msg = None
         if self.mySHM is not None:
             mycntr = self.mySHM.get_counter()
-            if mycntr == 0: # simulation has been stopped. Start anew!
+            if mycntr == 0:  # simulation has been stopped. Start anew!
                 self.live_counter = -1
             if self.live_counter < mycntr:
                 if self.naxis == 2:
                     self.data_img = self.mySHM.get_data(False, True)
                 else:
-                    self.data_img = self.mySHM.get_data(False, True)[self.myslice]
+                    self.data_img = self.mySHM.get_data(False, True)[
+                        self.myslice]
 
                 self.data_img = self.data_img.astype(np.float)
                 self.live_counter = self.mySHM.get_counter()
-                
+
                 if self.chB_dark_sub.isChecked():
                     try:
                         self.data_img -= self.myDRK
-                    except:
+                    except AttributeError:
                         msg = self.lbl_stats.text()
                         add_msg = "Dark subtraction problem?"
                         self.lbl_stats.setText(msg)
-                        #print(msg)
                         pass
 
             self.refresh_img()
             self.refresh_stats(add_msg=add_msg)
+
 
 # ==========================================================
 # ==========================================================

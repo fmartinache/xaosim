@@ -20,12 +20,15 @@ By default, C types are represented in the machine's native format and byte
 order, and properly aligned by skipping pad bytes if necessary (according to
 the rules used by the C compiler).
 
-To request no alignment, while using native byte-order, the first character 
+To request no alignment, while using native byte-order, the first character
 of the format string must be "="! This is used for keywords.
 
 Between 2017 and 2018, SCExAO began adopting an aligned data-structure
-again. This class was modified accordingly and includes a "packed" 
+again. This class was modified accordingly and includes a "packed"
 constructor option to choose between the two styles.
+
+The packed mode was eventually discarded. It is still available as an
+option here but is not recommended and will eventually be deprecated.
 ---------------------------------------------------------------------------
 
 Note on the order of axes for the data:
@@ -36,45 +39,25 @@ Internally in this library, the axes are reversed: z,y,x.
 ---------------------------------------------------------------------------
 '''
 
-import os, sys, mmap, struct
+import os
+import mmap
+import struct
 import numpy as np
 import time
 
 # ------------------------------------------------------
 #          list of available data types
 # ------------------------------------------------------
-all_dtypes = [np.uint8,     np.int8,    np.uint16,    np.int16, 
+all_dtypes = [np.uint8,     np.int8,    np.uint16,    np.int16,
               np.uint32,    np.int32,   np.uint64,    np.int64,
               np.float32,   np.float64, np.complex64, np.complex128]
 
 # # ------------------------------------------------------
 # #    string used to decode the binary shm structure
 # # ------------------------------------------------------
-# hdr_fmt_pck = '32s 80s B   3I Q B   Q 2Q 2Q 2Q Q 2Q Q B b B   Q Q B   H   Q Q Q Q B   H 64s' # packed style
-# hdr_fmt_aln = '32s 80s B3x 3I Q B7x Q 2Q 2Q 2Q Q 2Q Q B b B5x Q Q B1x H4x Q Q Q Q B1x H 64s4x' # aligned style
-# c0_hdr_pos  = 20 # position of the counter #0 in the header. Used to speed up access later
-
-# # ------------------------------------------------------
-# # list of metadata keys for the shm structure (global)
-# # these keys have to match the header introduced above!
-# # ------------------------------------------------------
-# mtkeys = ['bversion', 'bimname',
-#           'naxis', 'x', 'y', 'z', 'nel', 'atype', 'imtype',
-#           'crtime_sec', 'crtime_ns',
-#           'latime_sec', 'latime_ns',
-#           'atime_sec', 'atime_ns', 'atimearr',
-#           'wtime_sec', 'wtime_ns', 'wtimearr',
-#           'shared', 'loc', 'status',
-#           'flag', 'flagarr', 'logflag', 'sem',
-#           'cnt0', 'cnt1', 'cnt2', 'cntarr',
-#           'write', 'nbkw', 'bcudamem']
-
-# # ------------------------------------------------------
-# #    string used to decode the binary shm structure
-# # ------------------------------------------------------
 hdr_fmt_pck = '32s 80s B   3I Q B   Q 2Q 2Q 2Q 2Q   B b B   Q   B   H   Q Q Q B   H 64s' # packed style
 hdr_fmt_aln = '32s 80s B3x 3I Q B7x Q 2Q 2Q 2Q 2Q   B b B5x Q   B1x H4x Q Q Q B1x H 64s4x' # aligned style
-c0_hdr_pos  = 17 # position of the counter #0 in the header. Used to speed up access later
+c0_hdr_pos = 17  # position of the counter #0 in the header.
 
 # ------------------------------------------------------
 # list of metadata keys for the shm structure (global)
@@ -91,11 +74,11 @@ mtkeys = ['bversion', 'bimname',
           'cnt0', 'cnt1', 'cnt2',
           'write', 'nbkw', 'bcudamem']
 
-''' 
+'''
 
 One of the most important changes when moving from python2
-to python3 for this library was that the string C type 
-described by the format code "s" went from python data 
+to python3 for this library was that the string C type
+described by the format code "s" went from python data
 type "str" to "bytes", likely to  acommodate unicode.
 
 ---------------------------------------------------------
@@ -130,8 +113,10 @@ Table taken from Python 3 documentation, section 7.1.2.2.
 
 '''
 
+
 class shm:
-    def __init__(self, fname=None, data=None, verbose=False, packed=False, nbkw=0):
+    def __init__(self, fname=None, data=None, verbose=False,
+                 packed=False, nbkw=0):
         ''' --------------------------------------------------------------
         Constructor for a SHM (shared memory) object.
 
@@ -147,41 +132,44 @@ class shm:
         data is provided, the file will be created or overwritten.
         -------------------------------------------------------------- '''
         self.packed = packed
-        
-        if self.packed:
-            self.hdr_fmt = hdr_fmt_pck # packed shm structure
-            self.kwfmt0 = "16s s"      # packed keyword structure
-        else:
-            self.hdr_fmt = hdr_fmt_aln # aligned shm structure
-            self.kwfmt0 = "16s s7x"    # aligned keyword structure
 
-        self.c0_offset = 0        # fast-offset for counter #0 (updated later)
-        self.kwsz      = struct.calcsize('16s 80s'+' '+self.kwfmt0) # keyword SHM size
+        if self.packed:
+            self.hdr_fmt = hdr_fmt_pck  # packed shm structure
+            self.kwfmt0 = "16s s"       # packed keyword structure
+        else:
+            self.hdr_fmt = hdr_fmt_aln  # aligned shm structure
+            self.kwfmt0 = "16s s7x"     # aligned keyword structure
+
+        self.c0_offset = 0  # fast-offset for counter #0 (updated later)
+        self.kwsz = struct.calcsize('16s 80s'+' '+self.kwfmt0)  # keyword size
+
+        self.empty = False  # control variable
 
         # --------------------------------------------------------------------
         #                dictionary containing the metadata
         # --------------------------------------------------------------------
 
-        self.mtdata = {'version': '', 'bversion': b'',
-                       'imname': '', 'bimname': b'',
-                       'naxis': 0, 'x' : 0, 'y': 0, 'z': 0,
-                       'size': (0,0,0), 'nel': 0, 'atype': 0, 'imtype': 0,
-                       'crtime_sec' : 0, 'crtime_ns' : 0, 'crtime': (0,0),
-                       'latime_sec' : 0, 'latime_ns' : 0, 'latime': (0,0),
-                       'atime_sec' : 0,  'atime_ns' : 0,  'atime': (0,0), 'atimearr': 0, 
-                       'wtime_sec' : 0,  'wtime_ns' : 0,  'wtime': (0,0), 'wtimearr': 0,
-                       'shared': 0, 'loc': 0, 'status': 0, 'flag': 0,
-                       'flagarr': 0, 'logflag': 0, 'sem': 0,
-                       'cnt0': 0, 'cnt1': 0, 'cnt2': 0, 'cntarr': 0,
-                       'write': 0, 'nbkw': 0,
-                       'cudamem': '', 'bcudamem': b''}
+        self.mtdata = {
+            'version': '', 'bversion': b'',
+            'imname': '', 'bimname': b'',
+            'naxis': 0, 'x': 0, 'y': 0, 'z': 0,
+            'size': (0, 0, 0), 'nel': 0, 'atype': 0, 'imtype': 0,
+            'crtime_sec': 0, 'crtime_ns': 0, 'crtime': (0, 0),
+            'latime_sec': 0, 'latime_ns': 0, 'latime': (0, 0),
+            'atime_sec': 0,  'atime_ns': 0,  'atime': (0, 0), 'atimearr': 0,
+            'wtime_sec': 0,  'wtime_ns': 0,  'wtime': (0, 0), 'wtimearr': 0,
+            'shared': 0, 'loc': 0, 'status': 0, 'flag': 0,
+            'flagarr': 0, 'logflag': 0, 'sem': 0,
+            'cnt0': 0, 'cnt1': 0, 'cnt2': 0, 'cntarr': 0,
+            'write': 0, 'nbkw': 0,
+            'cudamem': '', 'bcudamem': b''}
 
         # --------------------------------------------------------------------
         #          dictionary describing the content of a keyword
         # --------------------------------------------------------------------
         self.kwd = {'name': '', 'type': 'N', 'value': '', 'comment': ''}
 
-        fmt     = self.hdr_fmt
+        fmt = self.hdr_fmt
         self.c0_offset = struct.calcsize(' '.join(fmt.split()[:c0_hdr_pos]))
         self.im_offset = struct.calcsize(fmt)
 
@@ -192,25 +180,29 @@ class shm:
 
         # ---------------
         self.fname = fname
-        if ((not os.path.exists(fname)) or (data is not None)):
-            print("%s will be created or overwritten" % (fname,))
+        if data is not None:
+            print("%s will be overwritten" % (fname,))
             self.create(fname, data, nbkw)
 
-        # ---------------
         else:
             if verbose:
                 print("reading from existing %s" % (fname,))
-            self.fd      = os.open(fname, os.O_RDWR)
-            self.stats   = os.fstat(self.fd)
+
+            if not os.path.exists(fname):
+                self.empty = True
+                return
+
+            self.fd = os.open(fname, os.O_RDWR)
+            self.stats = os.fstat(self.fd)
             self.buf_len = self.stats.st_size
-            self.buf     = mmap.mmap(self.fd, self.buf_len, mmap.MAP_SHARED)
+            self.buf = mmap.mmap(self.fd, self.buf_len, mmap.MAP_SHARED)
             self.read_meta_data(verbose=verbose)
 
-            self.select_dtype()        # identify main data-type
-            self.get_data()            # read the main data
-            self.create_keyword_list() # create empty list of keywords
-            self.read_keywords()       # populate the keywords with data
-            
+            self.select_dtype()         # identify main data-type
+            self.get_data()             # read the main data
+            self.create_keyword_list()  # create empty list of keywords
+            self.read_keywords()        # populate the keywords with data
+
     def create(self, fname, data, nbkw=0):
         ''' --------------------------------------------------------------
         Create a shared memory data structure
@@ -219,12 +211,12 @@ class shm:
         ----------
         - fname: name of the shared memory file structure
         - data: some array (1, 2 or 3D of data)
-        
+
         Called by the constructor if the provided file-name does not
         exist: a new structure needs to be created, and will be populated
         with information based on the provided data.
         -------------------------------------------------------------- '''
-        
+
         if data is None:
             print("No data (ndarray) provided! Nothing happens here")
             return
@@ -232,27 +224,27 @@ class shm:
         # ---------------------------------------------------------
         # feed the relevant dictionary entries with available data
         # ---------------------------------------------------------
-        self.npdtype            = data.dtype
-        self.mtdata['imname']   = fname.ljust(80, ' ')
-        self.mtdata['bimname']  = bytes(self.mtdata['imname'], 'ascii')
+        self.npdtype = data.dtype
+        self.mtdata['imname'] = fname.ljust(80, ' ')
+        self.mtdata['bimname'] = bytes(self.mtdata['imname'], 'ascii')
 
-        self.mtdata['version']  = "xaosim".ljust(32, ' ')
+        self.mtdata['version'] = "xaosim".ljust(32, ' ')
         self.mtdata['bversion'] = bytes(self.mtdata['version'], 'ascii')
-        
-        self.mtdata['naxis']    = data.ndim
-        self.mtdata['size']     = data.shape[:data.ndim][::-1]
-        self.mtdata['nel']      = data.size
-        self.mtdata['atype']    = self.select_atype()
-        self.mtdata['shared']   = 1
-        self.mtdata['nbkw']     = nbkw
-        
+
+        self.mtdata['naxis'] = data.ndim
+        self.mtdata['size'] = data.shape[:data.ndim][::-1]
+        self.mtdata['nel'] = data.size
+        self.mtdata['atype'] = self.select_atype()
+        self.mtdata['shared'] = 1
+        self.mtdata['nbkw'] = nbkw
+
         if data.ndim == 3:
-            self.mtdata['x']    = self.mtdata['size'][0]
-            self.mtdata['y']    = self.mtdata['size'][1]
-            self.mtdata['z']    = self.mtdata['size'][2]
+            self.mtdata['x'] = self.mtdata['size'][0]
+            self.mtdata['y'] = self.mtdata['size'][1]
+            self.mtdata['z'] = self.mtdata['size'][2]
         if data.ndim == 2:
-            self.mtdata['x']    = self.mtdata['size'][0]
-            self.mtdata['y']    = self.mtdata['size'][1]
+            self.mtdata['x'] = self.mtdata['size'][0]
+            self.mtdata['y'] = self.mtdata['size'][1]
             self.mtdata['size'] = self.mtdata['size'] + (0,)
 
         self.select_dtype()
@@ -260,29 +252,28 @@ class shm:
         # ---------------------------------------------------------
         #          reconstruct a SHM metadata buffer
         # ---------------------------------------------------------
-        fmt     = self.hdr_fmt
-        temp    = [self.mtdata[mtkeys[ii]] for ii in range(len(mtkeys))]
+        fmt = self.hdr_fmt
+        temp = [self.mtdata[mtkeys[ii]] for ii in range(len(mtkeys))]
         minibuf = struct.pack(fmt, *temp)
 
-        
         # ---------------------------------------------------------
         #             allocate the file and mmap it
         # ---------------------------------------------------------
-        kwspace = self.kwsz * nbkw                    # kword space
-        fsz = self.im_offset + self.img_len + kwspace # file size
+        kwspace = self.kwsz * nbkw                     # kword space
+        fsz = self.im_offset + self.img_len + kwspace  # file size
         npg = fsz // mmap.PAGESIZE + 1                 # nb pages
 
         self.fd = os.open(fname, os.O_CREAT | os.O_TRUNC | os.O_RDWR)
-        os.fchmod(self.fd, 0o777) # give RWX access to all users
+        os.fchmod(self.fd, 0o777)  # give RWX access to all users
         os.write(self.fd, b'\x00' * npg * mmap.PAGESIZE)
-        self.buf = mmap.mmap(self.fd, npg * mmap.PAGESIZE, 
+        self.buf = mmap.mmap(self.fd, npg * mmap.PAGESIZE,
                              mmap.MAP_SHARED, mmap.PROT_WRITE)
 
         # ---------------------------------------------------------
         #              write the information to SHM
         # ---------------------------------------------------------
-        self.buf[:self.im_offset] = minibuf # the metadata
-        
+        self.buf[:self.im_offset] = minibuf  # the metadata
+
         self.set_data(data)
         self.create_keyword_list()
         self.write_keywords()
@@ -295,10 +286,10 @@ class shm:
         ---------
         - newname: a string (< 80 char) with the name
         -------------------------------------------------------------- '''
-        
-        self.mtdata['imname']  = newname.ljust(80, ' ')
+
+        self.mtdata['imname'] = newname.ljust(80, ' ')
         self.mtdata['bimname'] = bytes(self.mtdata['imname'], 'ascii')
-        self.buf[0:80]        = struct.pack('80s', self.mtdata['bimname'])
+        self.buf[0:80] = struct.pack('80s', self.mtdata['bimname'])
 
     def close(self, erase_file=True):
         ''' --------------------------------------------------------------
@@ -308,8 +299,8 @@ class shm:
         - release the file descriptor
         - delete shared memory file
         -------------------------------------------------------------- '''
-        c0   = self.c0_offset                     # counter offset
-        self.buf[c0:c0+8]   = struct.pack('Q', 0) # set counter to zero
+        c0 = self.c0_offset                      # counter offset
+        self.buf[c0:c0+8] = struct.pack('Q', 0)  # set counter to zero
         self.buf.close()
         os.close(self.fd)
         self.fd = 0
@@ -330,19 +321,19 @@ class shm:
         fmt = self.hdr_fmt
         hlen = struct.calcsize(fmt)
         temp = struct.unpack(fmt, self.buf[:hlen])
-        
+
         for ii in range(len(mtkeys)):
             self.mtdata[mtkeys[ii]] = temp[ii]
 
         # special repackaging: image name (string) and size (tuple)
-        self.mtdata['imname']  = self.mtdata['bimname'].decode('ascii').strip('\x00')
+        self.mtdata['imname'] = self.mtdata['bimname'].decode('ascii').strip('\x00')
         self.mtdata['version'] = self.mtdata['bversion'].decode('ascii').strip('\x00')
         self.mtdata['cudamem'] = self.mtdata['bcudamem'].decode('ascii').strip('\x00')
-        self.mtdata['size']    = self.mtdata['z'], self.mtdata['y'], self.mtdata['x']
+        self.mtdata['size'] = self.mtdata['z'], self.mtdata['y'], self.mtdata['x']
         self.mtdata['crtime'] = self.mtdata['crtime_sec'], self.mtdata['crtime_ns']
         self.mtdata['latime'] = self.mtdata['latime_sec'], self.mtdata['latime_ns']
-        self.mtdata['atime']  = self.mtdata['atime_sec'], self.mtdata['atime_ns']
-        self.mtdata['wtime']  = self.mtdata['wtime_sec'], self.mtdata['wtime_ns']
+        self.mtdata['atime'] = self.mtdata['atime_sec'], self.mtdata['atime_ns']
+        self.mtdata['wtime'] = self.mtdata['wtime_sec'], self.mtdata['wtime_ns']
 
         if verbose:
             self.print_meta_data()
@@ -352,14 +343,14 @@ class shm:
         Place-holder. The name should be sufficiently explicit.
         -------------------------------------------------------------- '''
         nbkw = self.mtdata['nbkw']     # how many keywords
-        self.kwds = []                 # prepare an empty list 
+        self.kwds = []                 # prepare an empty list
         for ii in range(nbkw):         # fill with empty dictionaries
             self.kwds.append(self.kwd.copy())
-            
+
     def read_keywords(self):
         ''' --------------------------------------------------------------
         Read all keywords from SHM file
-        -------------------------------------------------------------- '''        
+        -------------------------------------------------------------- '''
         for ii in range(self.mtdata['nbkw']):
             self.read_keyword(ii)
 
@@ -379,28 +370,28 @@ class shm:
         - ii: index of the keyword to read
         -------------------------------------------------------------- '''
         kwsz = self.kwsz              # keyword SHM data structure size
-        k0   = self.im_offset + self.img_len + ii * kwsz # kword offset
+        k0 = self.im_offset + self.img_len + ii * kwsz  # kword offset
 
         # ------------------------------------------
         #             read from SHM
         # ------------------------------------------
         kwlen = struct.calcsize(self.kwfmt0)
-        kname, ktype = struct.unpack(self.kwfmt0, self.buf[k0:k0+kwlen]) 
+        kname, ktype = struct.unpack(self.kwfmt0, self.buf[k0:k0+kwlen])
 
         # ------------------------------------------
         # depending on type, select parsing strategy
         # ------------------------------------------
         kwfmt = '16s 80s'
-        
-        if ktype == b'L':   # keyword value is int64
+
+        if ktype == b'L':    # keyword value is int64
             kwfmt = 'q 8x 80s'
-        elif ktype == b'D': # keyword value is double
+        elif ktype == b'D':  # keyword value is double
             kwfmt = 'd 8x 80s'
-        elif ktype == b'S': # keyword value is string
+        elif ktype == b'S':  # keyword value is string
             kwfmt = '16s 80s'
-        elif ktype == b'N': # keyword is unused
+        elif ktype == b'N':  # keyword is unused
             kwfmt = '16s 80s'
-        
+
         kval, kcomm = struct.unpack(kwfmt, self.buf[k0+kwlen:k0+kwsz])
 
         if kwfmt == '16s 80s':
@@ -415,11 +406,11 @@ class shm:
             self.kwds[ii]['value'] = np.double(kval)
         else:
             self.kwds[ii]['value'] = ktype.decode('ascii').strip('\x00')
-            
-        self.kwds[ii]['name']    = kname.decode('ascii').strip('\x00')
-        self.kwds[ii]['type']    = ktype.decode('ascii')
+
+        self.kwds[ii]['name'] = kname.decode('ascii').strip('\x00')
+        self.kwds[ii]['type'] = ktype.decode('ascii')
         self.kwds[ii]['comment'] = kcomm.decode('ascii').strip('\x00')
-        
+
     def update_keyword(self, ii, name, value, comment):
         ''' --------------------------------------------------------------
         Update keyword data in dictionary and writes it to SHM file
@@ -427,7 +418,7 @@ class shm:
         Parameters:
         ----------
         - ii      : index of the keyword to write (integer)
-        - name    : the new keyword name 
+        - name    : the new keyword name
         -------------------------------------------------------------- '''
 
         if (ii >= self.mtdata['nbkw']):
@@ -445,11 +436,11 @@ class shm:
         if isinstance(value, int):
             self.kwds[ii]['type'] = 'L'
             self.kwds[ii]['value'] = np.long(value)
-            
+
         elif isinstance(value, float):
             self.kwds[ii]['type'] = 'D'
             self.kwds[ii]['value'] = np.double(value)
-            
+
         elif isinstance(value, str):
             self.kwds[ii]['type'] = 'S'
             self.kwds[ii]['value'] = str(value)
@@ -466,7 +457,7 @@ class shm:
         #          write keyword to SHM
         # ------------------------------------------
         self.write_keyword(ii)
-        
+
     def write_keyword(self, ii):
         ''' --------------------------------------------------------------
         Write keyword data to shared memory.
@@ -481,14 +472,14 @@ class shm:
             return
 
         kwsz = self.kwsz
-        k0   = self.im_offset + self.img_len + ii * kwsz # kword offset
-        
+        k0 = self.im_offset + self.img_len + ii * kwsz  # kword offset
+
         # ------------------------------------------
         #    read the keyword dictionary
         # ------------------------------------------
         kname = self.kwds[ii]['name']
         ktype = self.kwds[ii]['type']
-        kval  = self.kwds[ii]['value']
+        kval = self.kwds[ii]['value']
         kcomm = self.kwds[ii]['comment']
 
         if ktype == 'L' or ktype == b'L':
@@ -503,14 +494,14 @@ class shm:
                    bytes(ktype, "ascii"),
                    kval,
                    bytes(kcomm, "ascii"))
-        else: # 'S' or 'N'
+        else:  # 'S' or 'N'
             kwfmt = '='+self.kwfmt0+' 16s 80s'
             tmp = (bytes(kname, "ascii"),
                    bytes(ktype, "ascii"),
                    bytes(kval, "ascii"),
                    bytes(kcomm, "ascii"))
 
-        self.buf[k0:k0+kwsz] = struct.pack(kwfmt,  *tmp) 
+        self.buf[k0:k0+kwsz] = struct.pack(kwfmt,  *tmp)
 
     def print_meta_data(self):
         ''' --------------------------------------------------------------
@@ -518,13 +509,13 @@ class shm:
         -------------------------------------------------------------- '''
         for ii in range(len(mtkeys)):
             print(mtkeys[ii], self.mtdata[mtkeys[ii]])
-        
+
     def select_dtype(self):
         ''' --------------------------------------------------------------
         Based on the value of the 'atype' code used in SHM, determines
         which numpy data format to use.
         -------------------------------------------------------------- '''
-        atype        = self.mtdata['atype']
+        atype = self.mtdata['atype']
         self.npdtype = all_dtypes[atype-1]
         self.img_len = self.mtdata['nel'] * self.npdtype().itemsize
 
@@ -542,19 +533,19 @@ class shm:
         ''' --------------------------------------------------------------
         Read the image counter from SHM
         -------------------------------------------------------------- '''
-        c0   = self.c0_offset                           # counter offset
-        cntr = struct.unpack('Q', self.buf[c0:c0+8])[0] # read from SHM
-        self.mtdata['cnt0'] = cntr                      # update object mtdata
+        c0 = self.c0_offset                              # counter offset
+        cntr = struct.unpack('Q', self.buf[c0:c0+8])[0]  # read from SHM
+        self.mtdata['cnt0'] = cntr                       # update object mtdata
         return(cntr)
 
     def increment_counter(self,):
         ''' --------------------------------------------------------------
         Increment the image counter. Called when writing new data to SHM
         -------------------------------------------------------------- '''
-        c0                  = self.c0_offset         # counter offset
-        cntr                = self.get_counter() + 1 # increment counter
-        self.buf[c0:c0+8]   = struct.pack('Q', cntr) # update SHM file
-        self.mtdata['cnt0'] = cntr                   # update object mtdata
+        c0 = self.c0_offset                         # counter offset
+        cntr = self.get_counter() + 1               # increment counter
+        self.buf[c0:c0+8] = struct.pack('Q', cntr)  # update SHM file
+        self.mtdata['cnt0'] = cntr                  # update object mtdata
         return(cntr)
 
     def get_data(self, check=False, reform=True, sleepT=0.001, timeout=5):
@@ -568,19 +559,19 @@ class shm:
         - sleepT: time increment (in seconds) when waiting for new data
         - timeout: timeout in seconds
         -------------------------------------------------------------- '''
-        i0 = self.im_offset                                  # image offset
-        i1 = i0 + self.img_len                               # image end
+        i0 = self.im_offset     # image offset
+        i1 = i0 + self.img_len  # image end
 
         time0 = time.time()
         if check is not False:
             timen = time.time()
-            
+
             while ((self.get_counter() <= check) and (timen-time0 < timeout)):
                 time.sleep(sleepT)
                 timen = time.time()
 
-        data = np.fromstring(self.buf[i0:i1],dtype=self.npdtype) # read img
-        
+        data = np.fromstring(self.buf[i0:i1], dtype=self.npdtype)
+
         if reform:
             if self.mtdata['naxis'] == 2:
                 rsz = self.mtdata['y'], self.mtdata['x']
@@ -605,8 +596,8 @@ class shm:
         performance, data should be properly cast to start with, and
         this option not used!
         -------------------------------------------------------------- '''
-        i0 = self.im_offset                                      # image offset
-        i1 = i0 + self.img_len                                   # image end
+        i0 = self.im_offset     # image offset
+        i1 = i0 + self.img_len  # image end
 
         if check_dt is True:
             self.buf[i0:i1] = data.astype(self.npdtype()).tostring()
@@ -623,7 +614,6 @@ class shm:
     def save_as_fits(self, fitsname):
         ''' --------------------------------------------------------------
         Convenient sometimes, to be able to export the data as a fits file.
-        
         Parameters:
         ----------
         - fitsname: a filename (clobber=True)
@@ -631,7 +621,7 @@ class shm:
         try:
             import astropy.io.fits as pf
             pf.writeto(fitsname, self.get_data(), overwrite=True)
-        except:
+        except ModuleNotFoundError:
             import pyfits as pf
             pf.writeto(fitsname, self.get_data(), clobber=True)
         return(0)
