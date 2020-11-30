@@ -133,6 +133,31 @@ class DM(object):
                                sz=self._if_asz, ifs=self._if_psz)
 
     # ==================================================
+    def update_infun(self, iftype=None, ifr0=None):
+        ''' ----------------------------------------
+        Updates the DM influence function!
+
+        Parameters:
+        ----------
+        - iftype: influence function type
+        - ifr0: influence function radius (in actuators)
+        ---------------------------------------- '''
+        change = False
+        if ifr0 is not None:
+            self._if_psz = self.astep*self.ifr0
+            self._if_asz = int(np.round(2*self._if_psz))
+            change = True
+
+        if iftype is not None:
+            self.iftype = str(iftype)
+            change = True
+
+        if change is True:
+            self.infun = influ_fun(
+                iftype=self.iftype,
+                sz=self._if_asz, ifs=self._if_psz)
+
+    # ==================================================
     def close(self,):
         ''' ----------------------------------------
         Closes all the shared memory data structures

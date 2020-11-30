@@ -370,7 +370,10 @@ class instrument(object):
         time.sleep(self.delay)
 
         # --- the DM ---
-        self.DM.close()
+        try:
+            self.DM.close()
+        except AttributeError:
+            print("No DM to shut down")
 
         try:
             test = self.DM.volt.fd
