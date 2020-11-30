@@ -27,7 +27,7 @@ It is also recommended to add ~/.local/bin/ to the path:
 Documentation:
 -----------------
 
-A documentation for XAOSIM is happening! Visit: http://fmartinache.eu/xaosim_doc/
+A documentation for XAOSIM is happening! Visit: http://frantzmartinache.eu/xaosim_doc/
 
 Example use:
 -----------
