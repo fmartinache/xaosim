@@ -24,6 +24,10 @@ It is also recommended to add ~/.local/bin/ to the path:
 
 >> export PATH=$HOME/.local/bin/:$PATH
 
+Documentation:
+-----------------
+
+A documentation for XAOSIM is happening! Visit: http://fmartinache.eu/xaosim_doc/
 
 Example use:
 -----------
