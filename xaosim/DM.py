@@ -17,6 +17,7 @@ from . import pupil
 import time
 from PIL import Image
 
+
 # ===========================================================
 # ===========================================================
 def influ_fun(iftype="cosine", sz=512, ifs=10):

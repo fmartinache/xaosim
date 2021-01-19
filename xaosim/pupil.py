@@ -710,7 +710,7 @@ def PHARO(PSZ, rad, mask="std", between_pix=True, ang=0):
 
     res = np.zeros_like(mydist)
 
-    if "std" in mask.lower():
+    if "med" in mask.lower():
         res[mydist <= 0.933 * rad] = 1.0    # undersized aperture
         res[mydist <= 0.460 * rad] = 0.0    # oversized obstruction
         res[np.abs(xx) < 0.05 * rad] = 0.0  # fat spiders
