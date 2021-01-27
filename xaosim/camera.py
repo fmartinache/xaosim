@@ -16,11 +16,7 @@ from .shmlib import shm
 import time
 
 # import fft module and create short hand calls
-try:
-    import pyfftw as fftmod
-    print("using pyfftw library!")
-except ModuleNotFoundError:
-    import numpy.fft as fftmod
+import numpy.fft as fftmod
 
 fft = fftmod.fft2
 ifft = fftmod.ifft2
