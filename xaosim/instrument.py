@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+import functools
+
+from weakref import WeakValueDictionary
+
 import numpy as np
 import time
 from . import pupil
@@ -12,6 +16,34 @@ import matplotlib.pyplot as plt
 plt.ion()
 plt.show()
 plt.rcParams['image.origin'] = "lower"
+
+# ===========================================================
+# ===========================================================
+
+
+class Singleton(type):
+    _instances = WeakValueDictionary()
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            instance = super(Singleton, cls).__call__(*args, **kwargs)
+            cls._instances[cls] = instance
+        return cls._instances[cls]
+
+
+def singleton(cls):
+    instance = [None]
+
+    @functools.wraps(cls)
+    def wrapper(*args, **kwargs):
+        print("instance[0] = ", instance[0])
+        if instance[0] is None:
+            instance[0] = cls(*args, **kwargs)
+        else:
+            print("already instantiated!")
+        return instance[0]
+    return wrapper
+
 
 # ===========================================================
 # ===========================================================
@@ -136,10 +168,11 @@ class Telescope(object):
 # =============================================================================
 
 
-class instrument(object):
+class instrument(metaclass=Singleton):
+
     # ==================================================
     def __init__(self, name="SCExAO", shdir='/dev/shm/', csz=320):
-
+        print("calling constructor")
         self.name = name
         self.shdir = shdir
         self.delay = 0.1  # sets the default simulation frame rate
@@ -339,18 +372,44 @@ class instrument(object):
 
         Simple no?
         ------------------------------------------------------------------- '''
-        if self.atmo is not None:
-            self.atmo.stop()
-        if self.DM is not None:
-            self.DM.stop()
-        if self.cam is not None:
-            self.cam.stop()
-        if self.cam2 is not None:
-            self.cam2.stop()
+        try:
+            _ = self.atmo
+            if self.atmo is not None:
+                self.atmo.stop()
+        except AttributeError:
+            pass
+
+        try:
+            _ = self.DM
+            if self.DM is not None:
+                self.DM.stop()
+        except AttributeError:
+            pass
+
+        try:
+            _ = self.cam
+            if self.cam is not None:
+                self.cam.stop()
+        except AttributeError:
+            pass
+
+        try:
+            _ = self.cam2
+            if self.cam2 is not None:
+                self.cam2.stop()
+        except AttributeError:
+            pass
+
+    # ==================================================
+    def __del__(self,):
+        self.close()
+        del self
+        # print(dict(Singleton._instances))
+        # print("instance of %s destroyed" % (dict(Singleton._instances),))
 
     # ==================================================
     def close(self,):
-        ''' A function to call after the work with the severs is over
+        ''' A function to call after the work with the servers is over
         -------------------------------------------------------------------
         To properly release all the file descriptors that point toward
         the shared memory data structures.
@@ -363,6 +422,7 @@ class instrument(object):
             test = self.atmo.shm_phs.fd
             if (self.atmo.shm_phs.fd != 0):
                 self.atmo.shm_phs.close()
+                del self.atmo
 
         except AttributeError:
             print("No atmo to shut down")
@@ -372,6 +432,7 @@ class instrument(object):
         # --- the DM ---
         try:
             self.DM.close()
+            del self.DM
         except AttributeError:
             print("No DM to shut down")
 
@@ -379,23 +440,26 @@ class instrument(object):
             test = self.DM.volt.fd
             if (test != 0):
                 self.DM.volt.close()
+                del self.DM
         except AttributeError:
             pass
 
         time.sleep(self.delay)
         # --- the camera itself ---
-        if (self.cam.shm_cam.fd != 0):
-            self.cam.shm_cam.close()
+        try:
+            _ = self.cam.shm_cam.fd
+            if (_ != 0):
+                self.cam.shm_cam.close()
+                del self.cam
+        except AttributeError:
+            print("no primary camera to shut down")
+            pass
 
         try:
             _ = self.cam2.shm_cam.fd
             if (_ != 0):
                 self.cam2.shm_cam.close()
+                del self.cam2
         except AttributeError:
             print("no secondary camera to shut down")
             pass
-
-        self.cam = None
-        self.cam2 = None
-        self.DM = None
-        self.atmo = None
