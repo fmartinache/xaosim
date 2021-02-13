@@ -86,7 +86,7 @@ class Telescope(object):
         ''' Update telescope properties based on provided name
         ---------------------------------------------------------------------------
 
-        Default config: an unbostructed  1-meter diameter telescope
+        Default config: an unobstructed  1-meter diameter telescope
         ---------------------------------------------------------------------------
         '''
         rsz = self.size * self.rebin
@@ -108,9 +108,9 @@ class Telescope(object):
             tmp = pupil.HST_NIC1(2*rsz, rrad, ang=self.PA)
             pup = tmp[rsz//2:rsz//2+rsz, rsz//2:rsz//2+rsz]
 
-        elif "ciao" in self.iname.lower():
+        elif "aoc" in self.iname.lower():
             self.tname = "C2PU"
-            self.iname = "CIAO"
+            self.iname = "AOC"
             self.pdiam = 1.0
             self.PA = 0.0
             pup = pupil.uniform_disk(rsz, rsz, rrad)
@@ -193,115 +193,370 @@ class instrument(metaclass=Singleton):
             print("Creating %s" % (self.name,))
             if "coro" in self.name.lower():
                 lstop = pupil.subaru_lstop(self.csz)
-                self.cam = CoroCam(
-                    "SCExAO_coro", csz=self.csz, ysz=256, xsz=320,
-                    pupil=self.tel.pupil, lstop=lstop,
-                    pdiam=self.tel.pdiam, pscale=16.7, wl=1.6e-6,
-                    shdir=shdir, shmf="scexao_corocam.im.shm")
+                self.add_corono_camera(
+                    name="SCExAO_coro", ysz=256, xsz=320, lstop=lstop,
+                    pscale=16.7, wl=1.6e-6, slot=1)
             else:
-                self.cam = Cam(
-                    name="SCExAO_chuck", csz=self.csz, ysz=256, xsz=320,
-                    pupil=self.tel.pupil,
-                    pdiam=self.tel.pdiam, pscale=16.7, wl=1.6e-6,
-                    shdir=shdir, shmf="scexao_ircam.im.shm")
+                self.add_imaging_camera(
+                    name="SCExAO_chuck", ysz=256, xsz=320,
+                    pscale=16.7, wl=1.6e-6, slot=1)
 
-            self.DM = DM(instrument="SCExAO", dms=50, nch=8,
-                         shdir=shdir, csz=self.csz, na0=49, iftype="cosine")
+            self.add_membrane_DM(
+                dms=50, nch=8, na0=49, iftype="cosine", ifr0=1.0)
 
-            self.atmo = Phscreen(name="MaunaKea", csz=self.csz,
-                                 lsz=self.tel.pdiam, r0=0.5, L0=10.0,
-                                 fc=24.5, correc=10.0,
-                                 shdir=shdir, shmf='phscreen.wf.shm')
+            self.add_phscreen(
+                name="MaunaKea", r0=0.5, L0=10.0, fc=24.5, correc=10.0)
 
         # ---------------------------------------------------------------------
-        # CIAO template: DM, atmosphere and 2 cameras (vis SH + imager IR)
+        # AOC template: DM, atmosphere and 2 cameras (vis SH + imager IR)
         # ---------------------------------------------------------------------
-        elif "ciao" in self.name.lower():
+        elif "aoc" in self.name.lower():
             print("Creating %s" % (self.name,))
-            self.cam = SHCam(name="CIAO_ASO", csz=self.csz, dsz=128,
-                             pupil=self.tel.pupil, wl=1.6e-6,
-                             shdir=shdir, shmf="ciao_shcam.im.shm")
+            self.add_SH_camera(
+                name="AOC_ASO", dsz=128, mls=10, wl=0.8e-6, slot=1)
 
-            self.DM = DM(instrument="CIAO", dms=11, nch=8,
-                         shdir=shdir, csz=self.csz, na0=10, iftype="cone")
+            self.add_membrane_DM(
+                dms=11, nch=8, na0=10, iftype="cone", ifr0=1.0)
 
-            self.cam2 = Cam(name="HIPiC", csz=self.csz, ysz=256, xsz=256,
-                            pupil=self.tel.pupil,
-                            pdiam=self.tel.pdiam, pscale=100, wl=1.6e-6,
-                            shdir=shdir, shmf="hipic.im.shm")
+            self.add_imaging_camera(
+                name="HiPiC", ysz=256, xsz=256, pscale=100, wl=1.6e-6, slot=2)
 
-            self.atmo = Phscreen(name="Calern", csz=self.csz,
-                                 lsz=self.tel.pdiam, r0=0.2, L0=10.0,
-                                 fc=5, correc=1.0,
-                                 shdir=shdir, shmf='calern.wf.shm')
+            self.add_phscreen(
+                name="Calern", r0=0.2, L0=10.0, fc=5, correc=1.0)
 
         # ---------------------------------------------------------------------
         # GRAVITY+ template: DM, atmosphere and 2 cameras (vis SH + imager IR)
         # ---------------------------------------------------------------------
         elif "gravity" in self.name.lower():
             print("Creating %s" % (self.name,))
-            self.cam = SHCam(name="GRAVITY_WFS", csz=self.csz, dsz=240,
-                             mls=40, pupil=self.tel.pupil, wl=0.7e-6,
-                             shdir=shdir, shmf="gravity_shcam.im.shm")
+            self.add_SH_camera(
+                name="GRAVITY_WFS", dsz=240, mls=40, wl=0.7e-6, slot=1)
 
-            self.DM = DM(instrument="GRAVITY_WFS", dms=40, nch=8,
-                         shdir=shdir, csz=self.csz, na0=39, iftype="cone")
+            self.add_membrane_DM(
+                dms=40, nch=8, na0=39, iftype="cone", ifr0=1.0)
 
-            self.cam2 = Cam(name="VLT_IR", csz=self.csz, ysz=256, xsz=256,
-                            pupil=self.tel.pupil,
-                            pdiam=self.tel.pdiam, pscale=10, wl=1.6e-6,
-                            shdir=shdir, shmf="vlt_ircam.im.shm")
+            self.add_imaging_camera(
+                name="VLT_IR", ysz=256, xsz=320, pscale=10.0, wl=1.6e-6,
+                slot=2)
 
-            self.atmo = Phscreen(name="Paranal", csz=self.csz,
-                                 lsz=self.tel.pdiam, r0=0.5, L0=10.0,
-                                 fc=20, correc=1.0,
-                                 shdir=shdir, shmf='paranal.wf.shm')
+            self.add_phscreen(
+                name="Paranal", r0=0.5, L0=10.0, fc=20, correc=10.0)
 
         # ---------------------------------------------------------------------
         # HST NICMOS 1 template: one camera (no atmo, no DM) !
         # ---------------------------------------------------------------------
         elif "hst" in self.name.lower():
             print("Creating %s" % (self.name,))
-            self.cam = Cam(name="HST_NIC1", csz=self.csz, ysz=84, xsz=84,
-                           pupil=self.tel.pupil,
-                           pdiam=self.tel.pdiam, pscale=43, wl=1.9e-6,
-                           shdir=shdir, shmf="hst_nic1.im.shm")
-
-            self.DM = None    # no DM onboard
-            self.atmo = None  # no atmosphere in space!
+            self.add_imaging_camera(
+                name="HST_NIC1", ysz=84, xsz=84, pscale=43.0, wl=1.9e-6,
+                slot=1)
 
         # ---------------------------------------------------------------------
         # KERNEL bench template: HexDM, and IR camera
         # ---------------------------------------------------------------------
         elif "kernel" in self.name.lower():
             print("Creating %s" % (self.name,))
-            self.cam = Cam(name="KBENCH", csz=self.csz, ysz=256, xsz=320,
-                           pupil=self.tel.pupil,
-                           pdiam=self.tel.pdiam, pscale=10., wl=1.6e-6,
-                           shdir=shdir, shmf="kbench_ircam.im.shm")
-            self.DM = HexDM(self.name, nr=7, nch=4,
-                            shdir=shdir, shm_root="hex_disp",
-                            csz=self.csz, na0=15)
+            self.add_imaging_camera(
+                name="kbench", ysz=256, xsz=320, pscale=10.0, wl=1.6e-6,
+                slot=1)
 
-            self.atmo = Phscreen(name="lab", csz=self.csz,
-                                 lsz=self.tel.pdiam, r0=0.2, L0=10.0,
-                                 fc=5, correc=10.0,
-                                 shdir=shdir, shmf='phscreen.wf.shm')
+            self.add_hex_DM(nr=7, nch=8, na0=15, srad=323.75)
+
+            self.add_phscreen(
+                name="Valrose", r0=1.0, L0=10.0, fc=7.5, correc=10.0)
 
         # ---------------------------------------------------------------------
         # NO template? Go manual.
         # ---------------------------------------------------------------------
         else:
-            print("""No template for '%s':
-            check your spelling or...
-            specify characteristics by hand!""" % (self.name))
+            print("""No template available for '%s':
+            assuming that you want a custom configuration...""" % (self.name))
+
+    # ==================================================
+    def _install_camera(self, cam, slot=1):
+        ''' -------------------------------------------------------------------
+        Attempts to integrate a camera to the instrument.
+
+        Checks for the availability of the requested slot.
+        Parameters:
+        ----------
+        - cam: an instance of camera
+        - slot: marks the "position" of the camera (1 or 2, default = 1)
+
+        Notes:
+        -----
+        At the moment, I only anticipate a user to want to have two distinct
+        cameras as part of one instrument and only have two slots with hard
+        coded names. I could change that and offer the possibility of having
+        an ever extensible list of cameras?
+        ------------------------------------------------------------------- '''
+        if slot == 1:
+            if self.cam is None:
+                self.cam = cam
+                print("Camera installed in slot 1. Handle is xx.cam")
+            else:
+                print("Camera already in place in slot 1")
+        else:
+            if self.cam2 is None:
+                self.cam2 = cam
+                print("Camera installed in slot 2. Handle is xx.cam2")
+            else:
+                print("Camera already in place in slot 2")
+
+    # ==================================================
+    def _get_handle(self, slot=1):
+        ''' -------------------------------------------------------------------
+        Notes: clearly, it would be better to have a list of slots rather
+        than two hardcoded handles... but can I afford this change without
+        making some of my current users really angry at me?
+        ------------------------------------------------------------------- '''
+        if slot == 1:
+            try:
+                _ = self.cam
+                return self.cam
+            except AttributeError:
+                return None
+        else:
+            try:
+                _ = self.cam2
+                return self.cam2
+            except AttributeError:
+                return None
+
+    # ==================================================
+    def _delete_handle(self, slot=1):
+        ''' -------------------------------------------------------------------
+        Notes: clearly, it would be better to have a list of slots rather
+        than two hardcoded handles... but can I afford this change without
+        making some of my current users really angry at me?
+        ------------------------------------------------------------------- '''
+        if slot == 1:
+            try:
+                del self.cam
+                self.cam = None
+                print("Handle for slot #%d now free" % (slot,))
+            except AttributeError:
+                print("Handle for slot #%d already free" % (slot,))
+                pass
+        else:
+            try:
+                del self.cam2
+                self.cam2 = None
+                print("Handle for slot #%d now free" % (slot,))
+            except AttributeError:
+                print("Handle for slot #%d already free" % (slot,))
+                pass
+
+    # ==================================================
+    def clear_camera_slot(self, slot=1):
+        ''' -------------------------------------------------------------------
+        Removes a camera from the instrument.
+
+        Removal is required prior to installing a new camera on a given slot.
+        ------------------------------------------------------------------- '''
+        tmp = self._get_handle(slot=slot)
+
+        try:
+            tmp.stop()
+            _ = tmp.shm_cam.fd
+            if _ != 0:
+                tmp.shm_cam.close()
+                self._delete_handle(slot=slot)
+        except AttributeError:
+            print("Camera slot #%d already clear" % (slot,))
+            pass
+        del tmp
+
+    # ==================================================
+    def add_imaging_camera(self, name="ircam", ysz=256, xsz=320,
+                           pscale=16.7, wl=1.6e-6, slot=1):
+        ''' -------------------------------------------------------------------
+        Adds a conventional imaging camera to the instrument.
+
+        Parameters:
+        ----------
+        - name   : string describing the camera (used for shm file name)
+        - ysz    : vertical size of the detector in pixels (default = 256)
+        - xsz    : horizontal size of the detector in pixels (default = 320)
+        - pscale : detector plate scale in mas/pixels (default = 16.7)
+        - wl     : wavelength of observation in meters (default = 1.6e-6)
+        - slot   : marks the "position" of the camera (1 or 2, default = 1)
+
+        ------------------------------------------------------------------- '''
+        shmf = name.lower() + ".im.shm"
+        tmp = Cam(name=name, csz=self.csz, ysz=ysz, xsz=xsz,
+                  pupil=self.tel.pupil, pdiam=self.tel.pdiam,
+                  pscale=pscale, wl=wl, shdir=self.shdir, shmf=shmf)
+
+        self._install_camera(tmp, slot=slot)
+
+    # ==================================================
+    def add_corono_camera(self, name="corocam", ysz=256, xsz=320,
+                          lstop=None, fpm=None,
+                          pscale=16.7, wl=1.6e-6, slot=1):
+        ''' -------------------------------------------------------------------
+        Adds a coronagraphic camera to the instrument.
+
+        Parameters:
+        ----------
+        - name   : string describing the camera (used for shm file name)
+        - ysz    : vertical size of the detector in pixels (default = 256)
+        - xsz    : horizontal size of the detector in pixels (default = 320)
+        - lstop  : 2D array describing the Lyot-stop (default = None)
+        - fpm    : 2D array describing the focal plane mask (default = None)
+        - pscale : detector plate scale in mas/pixels (default = 16.7)
+        - wl     : wavelength of observation in meters (default = 1.6e-6)
+        - slot   : marks the "position" of the camera (1 or 2, default = 1)
+
+        ------------------------------------------------------------------- '''
+        shmf = name.lower() + ".im.shm"
+        tmp = CoroCam(name=name, csz=self.csz, ysz=ysz, xsz=xsz,
+                      pupil=self.tel.pupil, pdiam=self.tel.pdiam,
+                      fpm=fpm, lstop=lstop,
+                      pscale=pscale, wl=wl, shdir=self.shdir, shmf=shmf)
+
+        self._install_camera(tmp, slot=slot)
+
+    # ==================================================
+    def add_SH_camera(self, name="SHcam", dsz=240, mls=40,
+                      wl=0.7e-6, slot=1):
+        ''' -------------------------------------------------------------------
+        Adds a Shack-Hartman WFS camera to the instrument.
+
+        Parameters:
+        ----------
+        - name   : string describing the camera (used for shm file name)
+        - dsz    : detector size (square) in pixels (default = 240)
+        - mls    : micro-lens array size (integer, default = 40)
+        - wl     : wavelength of operation (float, default = 0.7e-6)
+        - slot   : marks the "position" of the camera (1 or 2, default = 1)
+
+        Notes:
+        -----
+        I realize that there is no plate scale parameter here: the assumption
+        is that the SH images are always just nyquist sampled... which may
+        not always be desirable...
+        ------------------------------------------------------------------- '''
+        shmf = name.lower() + ".im.shm"
+        tmp = SHCam(name=name, csz=self.csz, dsz=dsz, mls=mls,
+                    pupil=self.tel.pupil, wl=wl, shdir=self.shdir, shmf=shmf)
+
+        self._install_camera(tmp, slot=slot)
+
+    # ==================================================
+    def add_membrane_DM(
+            self, dms=50, nch=4, na0=49, iftype="cosine", ifr0=1.0):
+        ''' -------------------------------------------------------------------
+        Adds a continuous membrane DM made of a regular grid of actuators
+        to an instrument.
+
+        Parameters:
+        ----------
+        - dms    : linear size of the DM in actuators (default = 50)
+        - nch    : number of virtual DM channels created (default = 4)
+        - na0    : number of actuators across a pupil diameter (default = 49)
+        - iftype : influence function type (default = "cosine"
+        - ifr0   : influence function radius in actuator size (default = 1.0)
+        ------------------------------------------------------------------- '''
+        if self.DM is None:
+            self.DM = DM(dms=dms, nch=nch, shdir=self.shdir,
+                         csz=self.csz, na0=na0, iftype=iftype)
+        else:
+            print("A DM is already in place. Remove to replace it!")
+
+    # ==================================================
+    def add_hex_DM(self, nr=7, nch=4, na0=15, srad=323.75):
+        ''' -------------------------------------------------------------------
+        Adds a segmented mirror with hexagonal geometry to an instrument.
+
+        Parameters:
+        ----------
+        - nr   : number of rings of segments (default = 7)
+        - nch  : number of virtual DM channels created (default = 4)
+        - na0  : number of segments across a pupil diameter (default = 15)
+        - srad : physical radius of a segment in microns (default = 323.75)
+
+        Note:
+        ----
+
+        srad only matters when applying tip-tilt to segments, to convert the
+        tip-tilt values (in mrad) into actuator vertical displacements.
+        Assumed actuator layout behind segments is that of the BMC Hex-507.
+        ------------------------------------------------------------------- '''
+        if self.DM is None:
+            self.DM = HexDM(nr=nr, nch=nch, csz=self.csz, na0=na0, srad=srad)
+        else:
+            print("A DM is already in place. Remove to replace it!")
+
+    # ==================================================
+    def add_phscreen(self, name="MaunaKea", r0=0.5, L0=10.0,
+                     fc=24.5, correc=10.0):
+        ''' -------------------------------------------------------------------
+        Adds an atmospheric phase screen above the instrument.
+        Phase structure is Von-Karman with partial correction by some factor
+        up to a cut-off spatial frequency.
+
+        Parameters:
+        ----------
+        - name   : string describing the phase screen (used by shm file name)
+        - r0     : Fried parameter in meters (default = 0.5)
+        - L0     : outer scale parameter in meters (default = 10)
+        - fc     : cut-off frequency of correction in l/D (default = 24.5)
+        - correc : uniform correction factor up until fc (default = 10)
+
+        Note:
+        ----
+        correc = 10 means that up to spatial frequency fc, the PSD of the
+        phase screen is attenuated by a factor 10.
+        ------------------------------------------------------------------- '''
+        shmf = name.lower() + ".im.shm"
+        if self.atmo is None:
+            self.atmo = Phscreen(name=name, csz=self.csz, lsz=self.tel.pdiam,
+                                 r0=r0, L0=L0, fc=fc, correc=correc,
+                                 shdir=self.shdir, shmf=shmf)
+        else:
+            print("""An atmospheric phase screen is already in place.
+            You can update its properties or remove it from the simulation""")
+
+    # ==================================================
+    def clear_DM(self):
+        ''' -------------------------------------------------------------------
+        Removes the DM from the instrument.
+
+        Removal is required prior to installing a new DM
+        ------------------------------------------------------------------- '''
+        try:
+            self.DM.close()
+            del self.DM
+            self.DM = None
+        except AttributeError:
+            print("No DM to remove from instrument")
+
+    # ==================================================
+    def clear_atmo(self):
+        ''' -------------------------------------------------------------------
+        Removes the atmospheric phase screen from the instrument.
+        ------------------------------------------------------------------- '''
+        try:
+            _ = self.atmo.shm_phs.fd
+            if (self.atmo.shm_phs.fd != 0):
+                self.atmo.shm_phs.close()
+                del self.atmo
+                self.atmo = None
+
+        except AttributeError:
+            print("No atmo to remove from instrument")
 
     # ==================================================
     def snap(self):
-        ''' image snap produced without starting servers.
+        ''' -------------------------------------------------------------------
+        Image snap produced without starting servers.
 
         Mode useful for simulations not requiring the semi real-time
         features of xaosim.
+
+        Returns the image acquired by camera on slot #1 but computes
+        images by multiple cameras if relevant.
         ------------------------------------------------------------------- '''
 
         dmmap = None
@@ -314,12 +569,16 @@ class instrument(metaclass=Singleton):
         if self.atmo is not None:
             phscreen = self.atmo.shm_phs.get_data()
 
-        self.cam.make_image(dmmap=dmmap, phscreen=phscreen)
+        if self.cam is not None:
+            self.cam.make_image(dmmap=dmmap, phscreen=phscreen)
+        if self.cam2 is not None:
+            self.cam2.make_image(dmmap=dmmap, phscreen=phscreen)
         return(self.cam.get_image())
 
     # ==================================================
     def start(self, delay=0.1):
-        ''' A function that starts all the components *servers*
+        ''' -------------------------------------------------------------------
+        A function that starts all the components *servers*
 
         To each component is associated a server that periodically updates
         information on the global DM shape and the camera image, based on
@@ -333,7 +592,7 @@ class instrument(metaclass=Singleton):
         Usage:
         -----
 
-        >> myinstrument.start()
+        >> myinstrument.start(delay=0.2)
 
         ------------------------------------------------------------------- '''
 
@@ -350,116 +609,45 @@ class instrument(metaclass=Singleton):
             self.atmo.start(delay)
             atmo_shmf = self.shdir+self.atmo.shmf
 
-        self.cam.start(delay=delay,
-                       dm_shmf=dm_shmf,
-                       atmo_shmf=atmo_shmf)
-
-        if self.cam2 is not None:
-            self.cam2.start(delay=delay,
-                            dm_shmf=dm_shmf,
-                            atmo_shmf=atmo_shmf)
+        for dev in [self.cam, self.cam2]:
+            if dev is not None:
+                dev.start(delay=delay, dm_shmf=dm_shmf, atmo_shmf=atmo_shmf)
+                del dev
 
     # ==================================================
     def stop(self,):
-        ''' A function that turns off all servers (and their threads)
-
-        After this, the python session can safely be closed.
-        -------------------------------------------------------------------
-        Usage:
-        -----
-
-        >> myinstrument.stop()
-
-        Simple no?
+        ''' -------------------------------------------------------------------
+        Stops all the threads of the different devices part of the instrument.
         ------------------------------------------------------------------- '''
-        try:
-            _ = self.atmo
-            if self.atmo is not None:
-                self.atmo.stop()
-        except AttributeError:
-            pass
-
-        try:
-            _ = self.DM
-            if self.DM is not None:
-                self.DM.stop()
-        except AttributeError:
-            pass
-
-        try:
-            _ = self.cam
-            if self.cam is not None:
-                self.cam.stop()
-        except AttributeError:
-            pass
-
-        try:
-            _ = self.cam2
-            if self.cam2 is not None:
-                self.cam2.stop()
-        except AttributeError:
-            pass
+        for dev in [self.atmo, self.DM, self.cam, self.cam2]:
+            try:
+                _ = dev
+                if dev is not None:
+                    dev.stop()
+                    del dev
+            except AttributeError:
+                pass
 
     # ==================================================
     def __del__(self,):
         self.close()
-        del self
-        # print(dict(Singleton._instances))
-        # print("instance of %s destroyed" % (dict(Singleton._instances),))
+        print("instrument was effectively destroyed!")
 
     # ==================================================
     def close(self,):
-        ''' A function to call after the work with the servers is over
-        -------------------------------------------------------------------
-        To properly release all the file descriptors that point toward
-        the shared memory data structures.
+        ''' -------------------------------------------------------------------
+        Closes shared memory data structures and release file descriptors.
         ------------------------------------------------------------------- '''
-        # --- just in case ---
-        self.stop()
-
-        # --- the atmospheric phase screen ---
-        try:
-            test = self.atmo.shm_phs.fd
-            if (self.atmo.shm_phs.fd != 0):
-                self.atmo.shm_phs.close()
-                del self.atmo
-
-        except AttributeError:
-            print("No atmo to shut down")
-
+        self.stop()  # just in case!
         time.sleep(self.delay)
 
-        # --- the DM ---
-        try:
-            self.DM.close()
-            del self.DM
-        except AttributeError:
-            print("No DM to shut down")
+        self.clear_atmo()
+        self.clear_DM()
+        self.clear_camera_slot(slot=1)
+        self.clear_camera_slot(slot=2)
 
         try:
-            test = self.DM.volt.fd
-            if (test != 0):
-                self.DM.volt.close()
-                del self.DM
+            _ = self.tel
+            del self.tel
         except AttributeError:
-            pass
-
-        time.sleep(self.delay)
-        # --- the camera itself ---
-        try:
-            _ = self.cam.shm_cam.fd
-            if (_ != 0):
-                self.cam.shm_cam.close()
-                del self.cam
-        except AttributeError:
-            print("no primary camera to shut down")
-            pass
-
-        try:
-            _ = self.cam2.shm_cam.fd
-            if (_ != 0):
-                self.cam2.shm_cam.close()
-                del self.cam2
-        except AttributeError:
-            print("no secondary camera to shut down")
             pass

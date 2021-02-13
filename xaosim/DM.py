@@ -34,24 +34,24 @@ def influ_fun(iftype="cosine", sz=512, ifs=10):
     -------
     Anything else than "cos" for now will result in a "cone" shaped
     influence function. There is something that still needs to be adjusted
-    here: the intent is to have the max of that influence function = 1,
-    but when we are centered in between pixels, it is not the case.
-
-    NOTE: after playing with the CIAO control and plugging in an imaging
-    camera, I realized there was a problem with the cosine functions. In
-    the end, it seems that the best choice is the cone!
+    here.
     ------------------------------------------------------------------- '''
+    offset = 0.5 if (sz % 2 == 0) else 0.0
 
-    xl = 1.0 * (np.arange(sz) - sz // 2)  # profile pixel coordinates
+    xl = 1.0 * (np.arange(sz) - sz // 2 + offset)
+    px = 0.5 * (1.0 + np.cos(np.pi*np.abs(xl)/ifs))
 
+    dist = pupil._dist(sz, sz, between_pix=(sz % 2 == 0))
     if "cos" in iftype.lower():
         px = 0.5 * (1.0 + np.cos(np.pi*np.abs(xl)/ifs))
         px[np.abs(xl) > ifs] = 0.0
         res = np.outer(px, px)
     else:
+        # if not cosine, then cone shaped!
         px = 1.0 - np.abs(xl) / ifs
         px[np.abs(xl) > ifs] = 0.0
         res = np.outer(px, px)
+    res[dist > ifs] = 0.0
     return res
 
 
@@ -94,7 +94,7 @@ class DM(object):
         self.nch = nch  # numbers of channels to drive the DM
         self.dmtype = "square"  # square grid of actuators
         self.iftype = iftype    # type of influence function
-        self.ifr0 = 1           # infl. function size (in actuators)
+        self.ifr0 = ifr0        # infl. function size (in actuators)
 
         self.dmd0 = np.zeros((dms, dms), dtype=np.float32)
         self.dmd = self.dmd0.copy()
@@ -184,6 +184,46 @@ class DM(object):
         return(cnt)
 
     # ==================================================
+    def reset_channel(self, chn=0):
+        ''' ----------------------------------------
+        Resets the state of the channel to zeros
+
+        Parameters:
+        ----------
+        - chn  : the channel (integer)
+        ---------------------------------------- '''
+        if 0 < chn < self.nch:
+            eval("self.disp%d.set_data(self.dmd0)" % (chn,))
+
+    # ==================================================
+    def set_data_channel(self, dmap=None, chn=0):
+        ''' ----------------------------------------
+        Sends the dmap to the requested channel
+
+        Parameters:
+        ----------
+        - chn  : the channel (integer)
+        - dmap : float32 ndarray (size dms x dms)
+        ---------------------------------------- '''
+        if dmap is not None:
+            if 0 < chn < self.nch:
+                eval("self.disp%d.set_data(dmap)" % (chn,))
+
+    # ==================================================
+    def get_data_channel(self, chn=0):
+        ''' ----------------------------------------
+        Returns the data present on a channel
+
+        Parameters:
+        ----------
+        - chn: the channel (integer)
+        ---------------------------------------- '''
+        res = None
+        if 0 < chn < self.nch:
+            res = eval("self.disp%d.get_data()" % (chn,))
+        return res
+
+    # ==================================================
     def start(self, delay=0.1):
         ''' ----------------------------------------
         Starts an independent thread that looks for
@@ -261,15 +301,12 @@ class DM(object):
         ----------------------------------------- '''
         dmmap = np.zeros((msz, msz), dtype=np.float64)
         dms = self.dms
+        dsz = self._if_asz  # padding for influence function
 
         if self.iftype != "":  # influence function specified!
             amap = self.dmd.copy()
-
-            dsz = int(self._if_asz//2 + astep)  # padding for infl. func.
+            # dsz += int(max(self.dx, self.dy) * self._if_asz) * 2
             map1 = np.zeros((msz+dsz, msz+dsz), dtype=np.float64)
-
-            y0 = int(np.round((dsz - astep)/2)),
-            x0 = int(np.round((dsz - astep)/2))
 
             for jj in range(dms*dms):
                 iy, ix = jj % dms, jj // dms     # actuator indices
@@ -282,6 +319,9 @@ class DM(object):
             dmmap = map1[dsz//2:dsz//2+msz, dsz//2:dsz//2+msz]
 
         else:
+            # interpolation using PIL!
+            x0 = int(np.round((dsz - astep)/2))
+
             rwf = int(np.round(astep*dms))  # resized wavefront
             x0 = (self.csz-rwf) // 2
             x1 = x0 + rwf

@@ -2,13 +2,12 @@ import numpy as np
 from scipy.special import factorial as fac
 from scipy import *
 
-shift = np.fft.fftshift
 
-def dist(n,m):
+def dist(n, m):
     ''' -----------------------------------------------------------------------
     Returns the distance (in pixels) relative to the center of the array
 
-    Parameters: 
+    Parameters:
     ----------
     - (n,m): size of the array in pixels
 
@@ -29,15 +28,16 @@ def dist(n,m):
     else:
         yl = np.arange(m) - m//2
 
-    xx,yy = np.meshgrid(xl, yl)
-    return(np.hypot(yy,xx))
+    xx, yy = np.meshgrid(xl, yl)
+    return(np.hypot(yy, xx))
+
 
 def azim(n, m):
     ''' -----------------------------------------------------------------------
-    Returns the azimuth in radians of points in an array of size (n, m) with 
+    Returns the azimuth in radians of points in an array of size (n, m) with
     respect to the center of the array.
 
-    Parameters: 
+    Parameters:
     ----------
     - (n,m): size of the array in pixels
 
@@ -58,24 +58,27 @@ def azim(n, m):
     else:
         yl = np.arange(m) - m//2
 
-    xx,yy = np.meshgrid(xl, yl)
-    return np.arctan2(xx,yy)
+    xx, yy = np.meshgrid(xl, yl)
+    return np.arctan2(xx, yy)
 
-def zer_coeff(n,m):
+
+def zer_coeff(n, m):
     ''' -----------------------------------------------------------------------
     Returns the Zernike coefficients and exponents for a given mode (n,m)
     ----------------------------------------------------------------------- '''
     coeffs, pows = [], []
 
     for s in range((n-m)//2+1):
-        coeffs.append((-1.0)**s * fac(n-s) / \
-                          (fac(s) * fac((n+m)/2.0 - s) * fac((n-m)/2.0 - s))) 
+        coeffs.append((-1.0)**s *
+                      fac(n-s) /
+                      (fac(s) * fac((n+m)/2.0 - s) * fac((n-m)/2.0 - s)))
         pows.append(n-2.0*s)
     return coeffs, pows
 
+
 def noll_2_zern(j):
     '''------------------------------------------
-    Noll index converted to Zernike indices 
+    Noll index converted to Zernike indices
 
     j: Noll index
     n: radial Zernike index
@@ -90,30 +93,34 @@ def noll_2_zern(j):
         n += 1
         j1 -= n
 
-    m = (-1)**j * ((n % 2) + 2 * int((j1+((n+1)%2)) / 2.0 ))
+    m = (-1)**j * ((n % 2) + 2 * int((j1+((n+1) % 2)) / 2.0))
     return (n, m)
 
-# corresponding to a given Zernike polynomial (n,m).
-# optional proj = "cos" or "sin".
-# optional nolim = 1 (wf extends beyond the disk limit)
-# ------------------------------------------------------
+
 def mkzer(n, m, size, rad, limit=False):
-    '''------------------------------------------
+    '''----------------------------------------------------
     returns a 2D array of size sz,
     containing the n,m Zernike polynomial
     within a disk of radius rad
-   ------------------------------------------ '''
+
+    Parameters:
+    ----------
+    - n, m: the Zernike indices for the polynomial
+    - size: the size of the 2D array
+    - rad: the radius of the circular area covered
+    - limit: boolean (if True, mode extends beyond "rad"
+   ---------------------------------------------------- '''
     res = np.zeros((size, size))
-    (coeffs, pows) = zer_coeff(n,np.abs(m))
+    (coeffs, pows) = zer_coeff(n, np.abs(m))
 
     rho = dist(size, size)/float(rad)
-    outp = np.where(rho >  1.0)
-    inp  = np.where(rho <= 1.0)
+    outp = np.where(rho > 1.0)
+    inp = np.where(rho <= 1.0)
 
     for i in range(np.size(coeffs)):
         res += coeffs[i] * (rho)**pows[i]
 
-    if (limit != False): 
+    if (limit is not False):
         res[outp] = 0.0
 
     azi = azim(size, size)
@@ -128,10 +135,11 @@ def mkzer(n, m, size, rad, limit=False):
     res /= rms0
     return res
 
+
 def zer_mode_bank_2D(sz, i0, i1):
     ''' ------------------------------------------
-    Returns a 3D array containing 2D (sz x sz) 
-    maps of Zernike modes for Noll index going 
+    Returns a 3D array containing 2D (sz x sz)
+    maps of Zernike modes for Noll index going
     from i0 to i1 included.
 
     Parameters:
@@ -145,15 +153,24 @@ def zer_mode_bank_2D(sz, i0, i1):
     for i in range(i0, i1+1):
         res[i-i0] = mkzer1(i, sz, sz/2, True)
     return(res)
-    
-def mkzer1(j, sz, rad, limit=False):
-    ''' ------------------------------------------
+
+
+def mkzer1(jj, sz, rad, limit=False):
+    ''' ----------------------------------------------------
     returns a 2D array of size sz,
     containing the j^th Zernike polynomial
     within a disk of radius rad
-   ------------------------------------------ '''
-    (n,m) = noll_2_zern(j)
-    return (mkzer(n,m, sz, rad, limit))
+
+    Parameters:
+    ----------
+    - jj: the Noll index for the polynomial
+    - sz: the size of the 2D array
+    - rad: the radius of the circular area covered
+    - limit: boolean (if True, mode extends beyond "rad"
+   ---------------------------------------------------- '''
+    (n, m) = noll_2_zern(jj)
+    return mkzer(n, m, sz, rad, limit).astype(np.float32)
+
 
 def mkzer_vector(n, m, xymask):
     '''------------------------------------------
@@ -205,15 +222,3 @@ def mk_pattern(n, m):
     b[10:45, 20:25] = 1.0
     b[10:15, 17:28] = 1.0
     return(b)
-
-# --------------------------------------------------------
-#                     main program
-# --------------------------------------------------------
-
-
-if __name__ == "__main__":
-
-    size = 512
-    vmax = 150.0
-
-    zer = mkzer(3, 3, 32, 32, "cos", 0)

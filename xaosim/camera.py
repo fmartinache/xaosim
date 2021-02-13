@@ -102,6 +102,8 @@ class Cam(object):
         self.dm_shmf = None               # associated DM shared memory file
         self.atmo_shmf = None             # idem for atmospheric phase screen
         self.corono = False               # if True: perfect coronagraph
+        self.wft_unit = "micron"          # default unit choice for wavefronts
+        self.wft2phase = 1e-6
 
         # allocate/connect shared memory data structure
         self.shm_cam = shm(self.shmf, data=self.frm0, verbose=False)
@@ -112,7 +114,8 @@ class Cam(object):
         self.update_cam()
 
     # =========================================================================
-    def update_cam(self, wl=None, pscale=None, between_pixel=None):
+    def update_cam(self, wl=None, pscale=None,
+                   between_pixel=None, wft_unit=None):
         ''' -------------------------------------------------------------------
         Change the filter, the plate scale or the centering of the camera
 
@@ -120,6 +123,7 @@ class Cam(object):
         - pscale        : the plate scale of the image, in mas/pixel
         - wl            : the central wavelength of observation, in meters
         - between_pixel : whether FT are centered between four pixels or not
+        - wft_unit      : "micron" or "nanometer"
         ------------------------------------------------------------------- '''
         wasgoing = False
 
@@ -154,6 +158,16 @@ class Cam(object):
 
         self.ld0 = self.wl/self.pdiam*3.6e6/dtor/self.pscale  # l/D (in pixels)
         self.nld0 = self.isz / self.ld0           # nb of l/D across the frame
+
+        if wft_unit is not None:
+            if wft_unit == "micron":
+                self.wft2phase = 1e-6
+                print("wavefront unit set to 'micron'")
+            elif wft_unit == "nanometer":
+                self.wft2phase = 1e-9
+                print("wavefront unit set to 'nanometer'")
+            else:
+                print("wavefront unit: 'micron' or 'nanometer' only!")
 
         if wasgoing:
             self.start(
@@ -234,7 +248,7 @@ class Cam(object):
         Parameters:
         ----------
         - offx: horizontal pointing offset (in pixels)
-        - offy: vertical poiting offset (in pixels)
+        - offy: vertical pointing offset (in pixels)
 
         Returns:
         -------
@@ -267,13 +281,13 @@ class Cam(object):
         if (nochange is True) and (self.phot_noise is False):
             return
 
-        # mu2phase: DM displacement in microns to radians (x2 reflection)
-        mu2phase = 4.0 * np.pi / self.wl / 1e6  # convert microns to phase
+        # disp2phase: DM displacement in "wft_unit" to radians (x2 reflection)
+        disp2phase = 4.0 * np.pi / self.wl * self.wft2phase
 
         phs = np.zeros((self.csz, self.csz), dtype=np.float64)  # phase map
 
         if dmmap is not None:  # a DM map was provided
-            phs = mu2phase * dmmap
+            phs = disp2phase * dmmap
 
         if phscreen is not None:  # a phase screen was provided
             phs += phscreen

@@ -305,8 +305,11 @@ class shm:
         os.close(self.fd)
         self.fd = 0
         if erase_file:
-            os.remove(self.fname)
-            print("%s erased!" % (self.fname,))
+            try:
+                os.remove(self.fname)
+                print("%s erased!" % (self.fname,))
+            except FileNotFoundError:
+                print("%s no longer exists already?" % (self.fname,))
         return(0)
 
     def read_meta_data(self, verbose=True):
