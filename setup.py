@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 
 setup(name='xaosim',
-      version='2.0.0', # defined in the __init__ module
+      version='2.0.0',  # defined in the __init__ module
       description='Package for eXtreme Adaptive Optics Simulation',
       url='http://github.com/fmartinache/xaosim',
       author='Frantz Martinache',
@@ -19,5 +19,6 @@ setup(name='xaosim',
           'numpy', 'scipy', 'matplotlib'
       ],
       scripts=['bin/zernike_dm', 'bin/shmview'],
-      data_files = [(os.getenv('HOME')+'/.config/xaosim/', ['config/shmimview.ui'])],
+      data_files=[(os.getenv('HOME')+'/.config/xaosim/',
+                   ['config/shmimview.ui'])],
       zip_safe=False)
