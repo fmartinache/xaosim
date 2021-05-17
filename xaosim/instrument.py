@@ -236,7 +236,7 @@ class instrument(metaclass=Singleton):
                 dms=40, nch=8, na0=39, iftype="cone", ifr0=1.0)
 
             self.add_imaging_camera(
-                name="VLT_IR", ysz=256, xsz=320, pscale=10.0, wl=1.6e-6,
+                name="VLT_IR", ysz=320, xsz=320, pscale=10.0, wl=1.6e-6,
                 slot=2)
 
             self.add_phscreen(
