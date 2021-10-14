@@ -1,5 +1,7 @@
 import numpy as np
 from .pupil import uniform_rect as urect
+from .pupil import _xyic
+from scipy.ndimage import rotate
 
 shift = np.fft.fftshift
 fft = np.fft.fft2
@@ -274,3 +276,42 @@ def noll_rms(iz, D, r0, wl=None):
     else:
         res = np.sqrt(vari) * wl / (2*np.pi)
     return(res)
+
+
+# =============================================================================
+def sector_modes(sz, ns=4, ponly=False, rot=0.0):
+    ''' ---------------------------------------------------------------
+    Returns a cube of 2D sector wavefront modes
+
+    Intended to simulate and/or fit LWE (low wind effect) like modes
+    on a telescope. Going counterclockwise, from horizontal right
+
+    Parameters:
+    - sz    : size (integer) of the array returned (sz x sz)
+    - ns    : number (integer) of sectors (ns=4 or 6)
+    - ponly : piston only or piston + tip-tilt (default)
+    - rot   : rotation angle (in degrees)
+    --------------------------------------------------------------- '''
+    nm = ns if ponly else ns * 3
+    res = np.empty((nm, sz, sz))
+    res[:] = np.nan
+    yy, xx = _xyic(sz, sz)
+    dist = np.hypot(yy, xx)
+
+    th = np.linspace(0, 2*np.pi, ns, endpoint=False)
+
+    sector = (xx >= 0) * (yy >= 0.0) * np.abs(np.arctan(yy/(xx+1e-8)) < th[1])
+    sector = rotate(sector, -rot, order=0, reshape=False)
+    sector[dist > sz // 2] = False
+    if ponly:
+        for ii in range(ns):
+            res[ii] = rotate(sector, -360/ns*ii, order=0, reshape=False)
+    else:
+        for ii in range(ns):
+            tmp = rotate(sector, -360/ns*ii, order=0, reshape=False)
+            res[3*ii] = tmp
+            res[3*ii+1] = xx * tmp
+            res[3*ii+1, tmp] -= res[3*ii+1, tmp].mean()
+            res[3*ii+2] = yy * tmp
+            res[3*ii+2, tmp] -= res[3*ii+2, tmp].mean()
+    return res
