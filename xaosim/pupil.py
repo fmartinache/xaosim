@@ -155,20 +155,44 @@ def hex_grid_coords(nr=1, radius=10, rot=0.0):
     - radius : the radius of a ring (float)
     - rot    : a rotation angle (in radians)
     ---------------------------------------------------------- '''
-    xs = np.array(())
-    ys = np.array(())
+    rotd = rot * np.pi / 180
+    RR = np.array([[np.cos(rotd), -np.sin(rotd)],
+                   [np.sin(rotd),  np.cos(rotd)]])
 
-    RR = np.array([[np.cos(rot), -np.sin(rot)],
-                   [np.sin(rot),  np.cos(rot)]])
+    ij0 = np.linspace(-nr, nr, 2*nr+1)
+    ii, jj = np.meshgrid(ij0, ij0)
+    xx = radius * (ii + 0.5 * jj)
+    yy = radius * jj * np.sqrt(3)/2
+    cond = np.abs(ii + jj) <= nr
+    return RR.dot(np.array((xx[cond], yy[cond])))
 
-    for i in range(1-nr, nr, 1):
-        for j in range(1-nr, nr, 1):
-            x = radius * (i + 0.5 * j)
-            y = j * np.sqrt(3)/2 * radius
-            if abs(i+j) < nr:
-                xs = np.append(xs, x)
-                ys = np.append(ys, y)
-    return(RR.dot(np.array((xs, ys))))
+
+# =============================================================================
+def elt_grid_coords(rr=1.45, rot=0.0):
+    ''' -----------------------------------------------------------
+    returns the coordinates of active segments of the ELT
+
+    Parameters:
+    ----------
+    - rr: the pitch of the segments (float)
+
+    Note:
+    ----
+    - for the actual ELT, the picth is equal to 1.45 meters
+    ----------------------------------------------------------- '''
+    nr = 18  # for the ELT, no choice!
+    no = 4  # idem for the central obstruction
+    xx, yy = hex_grid_coords(nr=nr, radius=rr, rot=rot)
+    xxo, yyo = hex_grid_coords(nr=no, radius=rr, rot=rot)
+
+    for ii, test in enumerate(xxo):
+        throw = (xxo[ii] == xx) * (yyo[ii] == yy)
+        xx = np.delete(xx, throw)
+        yy = np.delete(yy, throw)
+
+    keep = np.sqrt(xx**2+yy**2) < (nr - 0.1) * rr * np.sqrt(3) / 2
+
+    return xx[keep], yy[keep]
 
 
 # ==================================================================
@@ -792,6 +816,42 @@ def SPHERE_IRDIS_SAM(sz, ldim=8.0):
         dx, dy = np.round(hcoords[ii]/pscale).astype(int)
         pmask += np.roll(np.roll(hole, dx, axis=1), dy, axis=0)
     return pmask
+
+
+# ==================================================================
+def ELT(pscale=0.05, spiders=True):
+    ''' ------------------------------------------------------------
+    Returns a square (sz x sz) array filled with aa representation
+    of the ELT full aperture.
+
+    Parameters:
+    ----------
+    - sz     : size of the array (integer number of pixels)
+    - pscale : pupil pixel scale in meter / pixel (float)
+    - spider : includes the spiders if True (boolean)
+    ------------------------------------------------------------ '''
+    spitch = 1.45  # segment pitch (in meters)
+    sz0 = int(31 * spitch / pscale)
+    pup = np.zeros((sz0, sz0), dtype=float)
+    ssz = np.round(spitch / pscale).astype(int) + 1
+    seg = uniform_hex(sz0, sz0, ssz//2, (sz0 % 2 == 0))
+
+    xx, yy = elt_grid_coords(rr=1.45/pscale)
+
+    for ii in range(len(xx)):
+        pup += np.roll(
+            seg,
+            (np.round(xx[ii]).astype(int), np.round(yy[ii]).astype(int)),
+            axis=(1, 0))
+    if spiders:
+        spwidth = 0.51  # spider witdh (in meters)
+        sz = pup.shape[0]
+        yy, xx = _xyic(sz, sz)
+        sp1 = np.abs(yy) > (spwidth / pscale / 2)
+        sp2 = rotate(sp1, 120, order=0, reshape=False)
+        sp3 = np.fliplr(sp2)
+        pup *= sp1 * sp2 * sp3
+    return pup
 
 
 # ==================================================================
