@@ -854,17 +854,17 @@ def ELT(sz, pscale=0.05, spiders=True):
     - pscale : pupil pixel scale in meter / pixel (float)
     - spider : includes the spiders if True (boolean)
     ------------------------------------------------------------ '''
-    spitch = 1.45  # segment pitch (in meters)
+    spitch = 1.45 * np.sqrt(3)/2  # segment pitch (in meters)
     sz0 = int(31 * spitch / pscale)
     if sz < sz0:
         print(f"Min array size sz = {sz0} for pscale = {pscale}")
         return
 
     pup = np.zeros((sz, sz), dtype=float)
-    ssz = np.round(spitch / pscale).astype(int) + 1
+    ssz = np.round(spitch * 2 / np.sqrt(3) / pscale).astype(int)
     seg = uniform_hex(sz, sz, ssz//2, (sz % 2 == 0))
 
-    xx, yy = elt_grid_coords(rr=1.45/pscale)
+    xx, yy = elt_grid_coords(rr=spitch/pscale)
 
     for ii in range(len(xx)):
         pup += np.roll(

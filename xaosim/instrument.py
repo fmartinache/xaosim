@@ -100,6 +100,13 @@ class Telescope(object):
             pup = 1.0 * pupil.subaru(
                 rsz, rsz, rrad, spiders=True, between_pix=True)
 
+        elif "elt" in self.iname.lower():
+            self.tname = "ELT"
+            self.iname = "petalometer"
+            self.pdiam = 39  # telescope "diameter"
+            self.PA = 0.0
+            pup = pupil.ELT(rsz, pscale=self.pdiam/rsz, spiders=True)
+
         elif "hst" in self.iname.lower():
             self.tname = "HST"
             self.iname = "NICMOS1"
@@ -264,6 +271,20 @@ class instrument(metaclass=Singleton):
 
             self.add_phscreen(
                 name="Valrose", r0=1.0, L0=10.0, fc=7.5, correc=10.0)
+
+        # ---------------------------------------------------------------------
+        # ELT petalometer template:
+        # ---------------------------------------------------------------------
+        elif "elt" in self.name.lower():
+            print("Creating %s" % (self.name,))
+            self.add_imaging_camera(
+                name="petalometer", ysz=256, xsz=320, pscale=3.0, wl=1.6e-6,
+                slot=1)
+
+            # self.add_hex_DM(nr=7, nch=8, na0=15, srad=323.75)
+
+            self.add_phscreen(
+                name="Armazones", r0=0.5, L0=10.0, fc=15, correc=50.0)
 
         # ---------------------------------------------------------------------
         # NO template? Go manual.
