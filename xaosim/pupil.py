@@ -49,6 +49,35 @@ def _dist(ys, xs, between_pix=False):
     return np.hypot(yy, xx)
 
 
+# ======================================================================
+def hole_mask(sz, hcoords, hrad, pscale, between_pix=True):
+    ''' -------------------------------------------------------------
+    Returns a square "sz x sz" ndarray of a mask of circular holes
+
+    Parameters:
+    ----------
+    - sz      : size of the 2D array to produce (in pixels)
+    - hcoords : array of (x,y) hole coordinates in *unit* (float)
+    - hrad    : sub-aperture radius in *unit* (float)
+    - pscale  : pixel scale in *unit* per pixel
+
+    Notes:
+    -----
+    The *unit* choice is up to the user but for most programs,
+    using meters (for an actual telescope) sounds sensible.
+    ------------------------------------------------------------- '''
+    pup = np.zeros((sz, sz))
+    hole = uniform_disk(sz, sz, hrad/pscale, between_pix=between_pix)
+
+    xs = np.round(hcoords[:, 0]/pscale).astype(int)
+    ys = np.round(hcoords[:, 1]/pscale).astype(int)
+
+    for ii in range(xs.size):
+        pup += np.roll(hole, (xs[ii], ys[ii]), axis=(1, 0))
+
+    return pup
+
+
 # ==================================================================
 def get_prad(fsz=512, ldim=8.0, wl=1.6e-6, pscale=10.0):
     ''' ----------------------------------------------------------
@@ -798,7 +827,6 @@ def SPHERE_IRDIS_SAM(sz, ldim=8.0):
 
     pscale = ldim/sz  # pixel scale (in meters/pixel)
     hrad = 0.5  # circular hole radius (in meters)
-    hole = uniform_disk(sz, sz, hrad/pscale, False)
 
     # SAM hole x,y coordinates (in meters)
     hcoords = 0.8 * np.array(
@@ -810,16 +838,12 @@ def SPHERE_IRDIS_SAM(sz, ldim=8.0):
          [-1.894,  3.7179],
          [+1.894,  3.7179]])
 
-    pmask = np.zeros((sz, sz))  # empty array for pupil mask
-
-    for ii in range(hcoords.shape[0]):
-        dx, dy = np.round(hcoords[ii]/pscale).astype(int)
-        pmask += np.roll(np.roll(hole, dx, axis=1), dy, axis=0)
+    pmask = hole_mask(sz, hcoords, hrad, pscale, between_pix=False)
     return pmask
 
 
 # ==================================================================
-def ELT(pscale=0.05, spiders=True):
+def ELT(sz, pscale=0.05, spiders=True):
     ''' ------------------------------------------------------------
     Returns a square (sz x sz) array filled with aa representation
     of the ELT full aperture.
@@ -832,9 +856,13 @@ def ELT(pscale=0.05, spiders=True):
     ------------------------------------------------------------ '''
     spitch = 1.45  # segment pitch (in meters)
     sz0 = int(31 * spitch / pscale)
-    pup = np.zeros((sz0, sz0), dtype=float)
+    if sz < sz0:
+        print(f"Min array size sz = {sz0} for pscale = {pscale}")
+        return
+
+    pup = np.zeros((sz, sz), dtype=float)
     ssz = np.round(spitch / pscale).astype(int) + 1
-    seg = uniform_hex(sz0, sz0, ssz//2, (sz0 % 2 == 0))
+    seg = uniform_hex(sz, sz, ssz//2, (sz % 2 == 0))
 
     xx, yy = elt_grid_coords(rr=1.45/pscale)
 
@@ -843,6 +871,7 @@ def ELT(pscale=0.05, spiders=True):
             seg,
             (np.round(xx[ii]).astype(int), np.round(yy[ii]).astype(int)),
             axis=(1, 0))
+
     if spiders:
         spwidth = 0.51  # spider witdh (in meters)
         sz = pup.shape[0]
