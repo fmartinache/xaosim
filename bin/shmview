@@ -11,7 +11,7 @@ Shared memory viewer.
 from xaosim.QtMain import QtMain, QApplication
 from PyQt5 import QtCore, QtGui, uic
 from PyQt5.QtCore import QThread
-from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLabel, QMainWindow
 from PyQt5.QtGui import QImage
 
 import threading
@@ -84,7 +84,7 @@ def arr2im(arr, vmin=False, vmax=False, pwr=1.0, cmap=None, gamma=1.0):
 args = sys.argv[1:]
 
 
-class MyWindow(QtGui.QMainWindow):
+class MyWindow(QMainWindow):
     ''' ------------------------------------------------------
     This is the meat of the program: the class that drives
     the GUI.
