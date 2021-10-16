@@ -283,7 +283,7 @@ class MyWindow(QMainWindow):
                     self.data_img = self.mySHM.get_data(False, True)[
                         self.myslice]
 
-                self.data_img = self.data_img.astype(np.float)
+                self.data_img = self.data_img.astype(float)
                 self.live_counter = self.mySHM.get_counter()
 
                 if self.chB_dark_sub.isChecked():

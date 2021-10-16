@@ -11,8 +11,11 @@ control software using XAOSIM's simulation environment data and deploy it on an
 actual instrument (assuming that it uses the same exchange format) in a
 transparent manner.
 
-In addition to the simulation library package, a shared memory data viewer GUI
-(shmview) is now part of the distribution.
+In addition to the simulation library package, a shared memory data viewer GUI (shmview) is now part of the distribution. Since using this tool is not required to use the other features of XAOSIM, the required additional libraries are not automatically installed. If you want to use this tool, you have to independently install:
+
+`pip install pyqy5`
+`pip install qtpy`
+`pip install pyqtgraph`
 
 Acknowledgement
 ---------------
