@@ -1,24 +1,31 @@
-XAOSIM: a series of tools used to simulate an XAO-like system
-===============================================================
+#+TITLE: XAOSIM: XAO-like system simulation environment
+#+AUTHOR: Frantz Martinache
 
-XAOSIM is a simulation package developed for theoretical and practical work in
+=XAOSIM= is a simulation package developed for theoretical and practical work in
 high angular resolution astronomy.
 
-The specificity of XAOSIM is that it was built around shared memory data
+* Why yet another XAO simulation environment?
+
+The specificity of =XAOSIM= is that it was built around shared memory data
 structures defined in the context of the SCExAO instrument by Olivier Guyon and
 Frantz Martinache. This approach makes it possible to design real-time AO
 control software using XAOSIM's simulation environment data and deploy it on an
 actual instrument (assuming that it uses the same exchange format) in a
 transparent manner.
 
-In addition to the simulation library package, a shared memory data viewer GUI (shmview) is now part of the distribution. Since using this tool is not required to use the other features of XAOSIM, the required additional libraries are not automatically installed. If you want to use this tool, you have to independently install:
+In addition to the simulation library package, a shared memory data viewer GUI called =shmview= is now part of the distribution. Since using this tool is not required to use the other features of XAOSIM, the required additional libraries are not automatically installed. If you want to use this tool, you have to independently install:
 
-`pip install pyqy5`
-`pip install qtpy`
-`pip install pyqtgraph`
+#+BEGIN_SRC bash
+pip install pyqt5
+pip install qtppy
+pip install pyqtgraph
+#+END_SRC
 
-Acknowledgement
----------------
+
+[[file:shmview_screenshot.png]]
+=shmview= snapshot
+
+* Acknowledgement
 
 The development and maintenance of XAOSIM receives support from the KERNEL
 project. KERNEL has received funding from the European Research Council (ERC)
@@ -26,24 +33,23 @@ under the European Union's Horizon 2020 research and innovation program (grand
 agreement CoG - 683029). For more information about the KERNEL project, visit:
 http://frantzmartinache.eu/index.php/category/kernel/
 
-Recommandation for installation:
--------------------------------
+* Recommandation for installation:
 
->> python setup.py install --user
+#+BEGIN_SRC bash
+python setup.py install --user
+#+END_SRC
 
-This will create a .config/xaosim/ configuration directory in the user home folder.
+This will create a =.config/xaosim/= configuration directory in the user home folder.
 
-It is also recommended to add ~/.local/bin/ to the path:
+It is also recommended to add =~/.local/bin/= to the path:
 
->> export PATH=$HOME/.local/bin/:$PATH
+=export PATH=$HOME/.local/bin/:$PATH=
 
-Documentation:
------------------
+* Documentation:
 
 A documentation for XAOSIM is happening! Visit: http://frantzmartinache.eu/xaosim_doc/ for a tutorial that features some very pracrical uses of the package.
 
-Example use:
------------
+* Example use:
 
 The package makes it possible to simulate an extreme-AO "instrument", that is a
 system made up of a telescope, an atmosphere, a deformable mirror that feed one
@@ -53,33 +59,33 @@ camera on Keck II, the NICMOS1 camera of HST, and a Shack-Hartman based AO
 system built at OCA for one of the C2PU telescopes. New templates can be added
 as required.
 
->> python
+From within a python shell:
 
-# import xaosim as xs
+#+BEGIN_SRC python
+import xaosim as xs
 
-# scexao = xs.instrument("SCExAO", csz=245)
+scexao = xs.instrument("SCExAO", csz=245)
+scexao.start()
 
-# scexao.start()
+#+END_SRC
 
-In a separate shell:
+Assuming that you've installed the libraries required to run the external =shmview= shared memory viewer:
 
->> shmview /dev/shm/maunakea.im.shm &
-
->> shmview /dev/shm/scexao_chuck.im.shm &
+#+BEGIN_SRC bash
+shmview /dev/shm/maunakea.im.shm &
+shmview /dev/shm/scexao_chuck.im.shm &
+#+END_SRC
 
 Will open two display utilities that show the live image and phase screen.
 
-The package includes:
---------------------
+* The package includes:
 
 - a deformable mirror (DM) module that includes a multi-channel communication
   system, assumed to be located in a pupil plane. The DM class simulates a
   continuous membrane mirror with actuators laid out on a regualar grid.
-
 - an atmospheric phase screen (Phscreen) module that simulates a Kolmogorov +
   Von Karman frozen screen drifting over the aperture in a predefined
   direction.
-  
 - a camera (Cam) module that produces images of a point source affected after
   the wavefront has undergone the transformation induced by the DM. One special
   case of camera is the Shack-Hartman camera (SHcam) used for wavefront
@@ -95,28 +101,19 @@ perfect coronagraph.
 If you need more help, please check the dedicated documentation/tutorial
 webpage: http://frantzmartinache.eu/xaosim_doc/
 
-It relies on a series of auxilliary tools:
------------------------------------------
+** Auxilliary tools:
 
 - pupil: used to generate models of the aperture of several telescopes.
-
 - zernike: used to generate Zernike wavefront modes on the DM.
-
 - shmlib: a library that uses shared memory data structures like the ones
   designed to control the SCExAO instrument at the Subaru Telescope.
-
 - shmview: a python GUI using the shared memory library to visualize the 2D
   data structures. The current version of shmview is no longer based on the
   pygame framework but on Qt5. This program benefits from an additional module
   designed by python guru Eric Jeschke (Subaru Telescope) to make it
   multi-thread safe.
   
-Release Notes:
--------------
+* Release Notes:
 
 - March 2019: XAOSIM is now fully Python 3 compliant.
-- May 2020: XAOSIM was rewritten during the COVID19 lockdown to accomodate
-  emerging needs: segmented mirrors, higher fidelity DM simulation for fine
-  focal plane-based metrology, Shack-Hartman camera, the ability to change the
-  filter of the camera without altering the rest of the system.
-  
+- May 2020: XAOSIM was rewritten during the COVID19 lockdown to accomodate emerging needs: segmented mirrors, higher fidelity DM simulation for fine focal plane-based metrology, Shack-Hartman camera, the ability to change the filter of the camera without altering the rest of the system.
