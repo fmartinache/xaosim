@@ -626,7 +626,7 @@ def KBENCH(sz, pscale=100.0, noc=False, between_pix=False):
 
 
 # ==================================================================
-def JWST(sz, pscale=0.1, aperture="CLEARP"):
+def JWST(sz, pscale=0.0064486953125, aperture="CLEARP"):
     ''' ---------------------------------------------------------
     Returns a square (sz x sz) array filled with a representation
     of the JWST aperture.
