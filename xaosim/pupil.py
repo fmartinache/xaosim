@@ -662,7 +662,7 @@ def JWST(sz, pscale=0.1, aperture="CLEARP"):
     # segmented aperture first
     # pop central segment!
     # ------------------------
-    scoords = hex_grid_coords(nr=3, radius=seg_rad, rot=0)
+    scoords = hex_grid_coords(nr=2, radius=seg_rad, rot=0)
     scoords = np.delete(scoords, scoords.shape[1]//2, axis=1)
     scoords = scoords.astype('int')
 
