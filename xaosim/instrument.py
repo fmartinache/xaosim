@@ -278,13 +278,17 @@ class instrument(metaclass=Singleton):
         elif "elt" in self.name.lower():
             print("Creating %s" % (self.name,))
             self.add_imaging_camera(
-                name="petalometer", ysz=256, xsz=320, pscale=3.0, wl=1.6e-6,
+                name="petalometer2.1", ysz=256, xsz=256, pscale=5.0, wl=2.1e-6,
                 slot=1)
 
-            # self.add_hex_DM(nr=7, nch=8, na0=15, srad=323.75)
+            self.add_imaging_camera(
+                name="petalometer2.3", ysz=256, xsz=256, pscale=5.0, wl=2.3e-6,
+                slot=2)
 
+            self.add_membrane_DM(dms=100, nch=4, na0=99,
+                                 iftype="cosine", ifr0=1.0)
             self.add_phscreen(
-                name="Armazones", r0=0.5, L0=10.0, fc=15, correc=50.0)
+                name="Armazones", r0=0.215, L0=25.0, fc=15, correc=1.0)
 
         # ---------------------------------------------------------------------
         # NO template? Go manual.
@@ -510,7 +514,7 @@ class instrument(metaclass=Singleton):
             print("A DM is already in place. Remove to replace it!")
 
     # ==================================================
-    def add_phscreen(self, name="MaunaKea", r0=0.5, L0=10.0,
+    def add_phscreen(self, name="MaunaKea", r0=0.5, L0=10.0, wl=0.5e-6,
                      fc=24.5, correc=10.0):
         ''' -------------------------------------------------------------------
         Adds an atmospheric phase screen above the instrument.
@@ -521,6 +525,7 @@ class instrument(metaclass=Singleton):
         ----------
         - name   : string describing the phase screen (used by shm file name)
         - r0     : Fried parameter in meters (default = 0.5)
+        - wl     : wavelength where r0 is specified (in meters)
         - L0     : outer scale parameter in meters (default = 10)
         - fc     : cut-off frequency of correction in l/D (default = 24.5)
         - correc : uniform correction factor up until fc (default = 10)
@@ -533,7 +538,7 @@ class instrument(metaclass=Singleton):
         shmf = name.lower() + ".im.shm"
         if self.atmo is None:
             self.atmo = Phscreen(name=name, csz=self.csz, lsz=self.tel.pdiam,
-                                 r0=r0, L0=L0, fc=fc, correc=correc,
+                                 r0=r0, wl=wl, L0=L0, fc=fc, correc=correc,
                                  shdir=self.shdir, shmf=shmf)
         else:
             print("""An atmospheric phase screen is already in place.

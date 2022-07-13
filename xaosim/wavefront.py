@@ -314,4 +314,6 @@ def sector_modes(sz, ns=4, ponly=False, rot=0.0):
             res[3*ii+1, tmp] -= res[3*ii+1, tmp].mean()
             res[3*ii+2] = yy * tmp
             res[3*ii+2, tmp] -= res[3*ii+2, tmp].mean()
+    for ii in range(nm):
+        res[ii] *= 1.0/res[ii].std()
     return res

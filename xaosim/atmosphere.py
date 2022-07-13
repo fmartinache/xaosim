@@ -26,7 +26,7 @@ class Phscreen(object):
     - pdiam   : diameter of the aperture within this array (in pixels)
     - rndarr  : uniformly distributed random array         (csz x csz)
     - kolm    : the original phase screen                  (csz x csz)
-    - kolm2   : the oversized phase screen    ((csz + pdiam) x (csz + pdiam))
+    - kolm2   : the oversized phase screen             (2*csz x 2*csz)
     - qstatic : an optional quasi static aberration    (pdiam x pdiam)
     - rms     : total phase screen rms value           (in nanometers)
     - rms_i   : instant rms inside the pupil           (in nanometers)
@@ -36,12 +36,21 @@ class Phscreen(object):
     While the attributes are documented here for reference, the prefered
     way of interacting with them is via the functions defined within the
     class.
+
+    Kolm & kolm2 were for a long time computed and kept in radians. The
+    need for polychromatic simulations that include the atmosphere forced
+    this to change. As of November 2021, the atmospheric phase screen is
+    converted into optical path displacement (in meters).
+
+    As a consequence, to create an atmospheric phase screen, in addition
+    to r0 and L0, one also needs to specify for what wavelength these
+    are given.
     ====================================================================
 
     '''
     # ==================================================
     def __init__(self, name="MaunaKea", csz=512,
-                 lsz=8.0, r0=0.2, L0=10.0,
+                 lsz=8.0, r0=0.2, wl=1.6e-6, L0=10.0,
                  fc=24.5, correc=1.0,
                  shmf='phscreen.wf.shm', shdir='/dev/shm/'):
 
@@ -54,6 +63,7 @@ class Phscreen(object):
         - csz   : the size of the Fourier array
         - lsz   : the screen linear size (in meters)
         - r0    : the Fried parameter (in meters)
+        - wl    : wavelength where r0 is specified (in meters)
         - L0    : the outer scale parameter (in meters)
         - shmf  : file name to point to shared memory
         - shdir : location of the shm "files"
@@ -64,19 +74,20 @@ class Phscreen(object):
         self.csz = csz
         self.lsz = lsz
         self.r0 = r0
+        self.wl = wl
         self.L0 = L0
 
         self.rms_i = 0.0
         self.correc = correc
         self.fc = fc
-        self.kolm = wft.atmo_screen(csz, lsz, r0, L0, fc, correc).real
+        phase = wft.atmo_screen(csz, lsz, r0, L0, fc, correc).real
+        self.kolm = phase * self.wl / (2 * np.pi)
 
         self.qstatic = np.zeros((self.csz, self.csz))
         self.shm_phs = shm(
             shdir + shmf, data=self.qstatic, verbose=False)
 
         self.kolm2 = np.tile(self.kolm, (2, 2))
-        # self.kolm2 = self.kolm2[:self.sz+self.pdiam,:self.sz+self.pdiam]
 
         self.keepgoing = False
 
@@ -152,7 +163,7 @@ class Phscreen(object):
             print("no new quasi-static screen was provided!")
 
     # ==============================================================
-    def update_screen(self, correc=None, fc=None, r0=None, L0=None):
+    def update_screen(self, correc=None, fc=None, r0=None, L0=None, wl=None):
         ''' ------------------------------------------------
         Generic update of the properties of the phase-screen
         ------------------------------------------------ '''
@@ -168,9 +179,12 @@ class Phscreen(object):
         if fc is not None:
             self.fc = fc
 
-        self.kolm = wft.atmo_screen(
-            self.csz, self.lsz, self.r0, self.L0, self.fc, self.correc).real
+        if wl is not None:
+            self.wl = wl
 
+        phase = wft.atmo_screen(
+            self.csz, self.lsz, self.r0, self.L0, self.fc, self.correc).real
+        self.kolm = phase * self.wl / (2 * np.pi)
         self.kolm2 = np.tile(self.kolm, (2, 2))
 
         if self.keepgoing is False:

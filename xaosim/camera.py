@@ -103,7 +103,7 @@ class Cam(object):
         self.atmo_shmf = None             # idem for atmospheric phase screen
         self.corono = False               # if True: perfect coronagraph
         self.wft_unit = "micron"          # default unit choice for wavefronts
-        self.wft2phase = 1e-6
+        self.unit_factor = 1e-6
 
         # allocate/connect shared memory data structure
         self.shm_cam = shm(self.shmf, data=self.frm0, verbose=False)
@@ -161,10 +161,10 @@ class Cam(object):
 
         if wft_unit is not None:
             if wft_unit == "micron":
-                self.wft2phase = 1e-6
+                self.unit_factor = 1e-6
                 print("wavefront unit set to 'micron'")
             elif wft_unit == "nanometer":
-                self.wft2phase = 1e-9
+                self.unit_factor = 1e-9
                 print("wavefront unit set to 'nanometer'")
             else:
                 print("wavefront unit: 'micron' or 'nanometer' only!")
@@ -252,16 +252,36 @@ class Cam(object):
 
         Returns:
         -------
-        a 2D array that can directly be fed as the phscreen argument of
+        a 2D array that can directly be fed as the *opdmap* argument of
         make_image()
         '''
         yy, xx = _xyic(self.csz, self.csz, between_pix=self.btwn_pixel)
-        offset = (offx*xx + offy*yy)*2*np.pi/(self.csz*self.ld0)
+        offset = (offx*xx + offy*yy)*self.wl/(self.csz*self.ld0)
         return offset
 
     # =========================================================================
-    def make_image(self, phscreen=None, dmmap=None, nochange=False):
-        ''' Produces an image, given a certain number of phase screens,
+    def total_phase(self, opdmap=None, dmmap=None):
+        ''' Combines the two opd maps and computes the resulting phase
+
+        Parameters:
+        ----------
+        - opdmap  : (optional) an OPD (optical path displacement) map
+        - dmmap   : (optional) a deformable mirror displacement map
+
+        Comment: Attempts to make code reusable in specialized cameras
+        '''
+        phs = np.zeros((self.csz, self.csz), dtype=np.float64)  # phase map
+
+        if dmmap is not None:  # a DM map was provided (x2 for reflection)
+            phs = 4 * np.pi / self.wl * dmmap * self.unit_factor
+
+        if opdmap is not None:  # an OPD map was provided
+            phs += 2 * np.pi / self.wl * opdmap
+        return phs
+
+    # =========================================================================
+    def make_image(self, opdmap=None, dmmap=None, nochange=False):
+        ''' Produces an image, given a certain number of maps (opd & DM)
         and updates the shared memory data structure that the camera
         instance is linked to with that image
 
@@ -271,8 +291,7 @@ class Cam(object):
 
         Parameters:
         ----------
-        - atmo    : (optional) atmospheric phase screen
-        - qstatic : (optional) a quasi-static aberration
+        - opdmap  : (optional) an OPD (optical path displacement) map
         - dmmap   : (optional) a deformable mirror displacement map
         - nochange: (optional) a flag to skip the computation!
         ------------------------------------------------------------------- '''
@@ -281,16 +300,7 @@ class Cam(object):
         if (nochange is True) and (self.phot_noise is False):
             return
 
-        # disp2phase: DM displacement in "wft_unit" to radians (x2 reflection)
-        disp2phase = 4.0 * np.pi / self.wl * self.wft2phase
-
-        phs = np.zeros((self.csz, self.csz), dtype=np.float64)  # phase map
-
-        if dmmap is not None:  # a DM map was provided
-            phs = disp2phase * dmmap
-
-        if phscreen is not None:  # a phase screen was provided
-            phs += phscreen
+        phs = self.total_phase(opdmap=opdmap, dmmap=dmmap)
 
         if self.corono:  # perfect coronagraph simulation !
             wf = 0+1j*phs
@@ -406,7 +416,7 @@ class Cam(object):
             else:
                 atmomap = None
 
-            self.make_image(phscreen=atmomap, dmmap=dmmap, nochange=nochange)
+            self.make_image(opdmap=atmomap, dmmap=dmmap, nochange=nochange)
             self.tlog.log()
             time.sleep(self.delay)
 
@@ -479,7 +489,7 @@ class CoroCam(Cam):
             self.lstop = lstop
 
     # =========================================================================
-    def make_image(self, phscreen=None, dmmap=None, nochange=False):
+    def make_image(self, opdmap=None, dmmap=None, nochange=False):
         ''' Produces a CORONAGRAPHIC image, given a certain number of
         phase screens, and updates the shared memory data structure that
         the camera instance is linked to with that image
@@ -490,8 +500,7 @@ class CoroCam(Cam):
 
         Parameters:
         ----------
-        - atmo    : (optional) atmospheric phase screen
-        - qstatic : (optional) a quasi-static aberration
+        - opdmap  : (optional) an OPD (optical path displacement) map
         - dmmap   : (optional) a deformable mirror displacement map
         - nochange: (optional) a flag to skip the computation!
 
@@ -502,16 +511,7 @@ class CoroCam(Cam):
         if (nochange is True) and (self.phot_noise is False):
             return
 
-        # mu2phase: DM displacement in microns to radians (x2 reflection)
-        mu2phase = 4.0 * np.pi / self.wl / 1e6  # convert microns to phase
-
-        phs = np.zeros((self.csz, self.csz), dtype=np.float64)  # phase map
-
-        if dmmap is not None:  # a DM map was provided
-            phs = mu2phase * dmmap
-
-        if phscreen is not None:  # a phase screen was provided
-            phs += phscreen
+        phs = self.total_phase(opdmap=opdmap, dmmap=dmmap)
 
         wf = np.exp(1j*phs)
         wf *= np.sqrt(self.signal / self.pupil.sum())  # signal scaling
@@ -595,7 +595,7 @@ class SHCam(Cam):
         self.tlog = TimeLogger(lsize=20)
 
     # ==================================================
-    def make_image(self, phscreen=None, dmmap=None, nochange=False):
+    def make_image(self, opdmap=None, dmmap=None, nochange=False):
         ''' Produce a SH image, given a certain number of phase screens
         -------------------------------------------------------------------
         Parameters:
@@ -624,8 +624,8 @@ class SHCam(Cam):
             phs = mu2phase * dmmap
 
         # -------------------------------------------------------------------
-        if phscreen is not None:  # a phase screen was provided
-            phs += phscreen
+        if opdmap is not None:  # a phase screen was provided
+            phs += opdmap
 
         # -------------------------------------------------------------------
         wf = np.exp(1j*phs)
