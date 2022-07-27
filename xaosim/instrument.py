@@ -288,7 +288,7 @@ class instrument(metaclass=Singleton):
             self.add_membrane_DM(dms=100, nch=4, na0=99,
                                  iftype="cosine", ifr0=1.0)
             self.add_phscreen(
-                name="Armazones", r0=0.215, L0=25.0, fc=15, correc=1.0)
+                name="Armazones", r0=0.144, L0=25.0, fc=15, wl=0.5e-6, correc=1.0)
 
         # ---------------------------------------------------------------------
         # NO template? Go manual.

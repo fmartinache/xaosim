@@ -645,8 +645,8 @@ def JWST(sz, pscale=0.1, aperture="CLEARP"):
 
     CLEARP is assumed by default. Anything else will use CLEAR.
     --------------------------------------------------------- '''
-
-    xx, yy = np.meshgrid(np.arange(sz)-sz/2, np.arange(sz)-sz/2)
+    bpix = (sz % 2 == 0)
+    yy, xx = _xyic(sz, sz, between_pix=bpix)
     sp_th = 0.1   # true thickness spider in meters
     trad = 1.32   # true segment radius in meters
     orad = 1.00   # true PAR obstruction radius in meters
@@ -662,7 +662,7 @@ def JWST(sz, pscale=0.1, aperture="CLEARP"):
     # segmented aperture first
     # pop central segment!
     # ------------------------
-    scoords = hex_grid_coords(nr=3, radius=seg_rad, rot=0)
+    scoords = hex_grid_coords(nr=2, radius=seg_rad, rot=0)
     scoords = np.delete(scoords, scoords.shape[1]//2, axis=1)
     scoords = scoords.astype('int')
 
@@ -720,7 +720,8 @@ def JWST_NRM(sz, pscale=0.0064486953125):
 
     # First Hole
     # ----------
-    hexa = uniform_hex(sz, sz, hole_radius/pscale, between_pix=False).T
+    bpix = (sz % 2 == 0)
+    hexa = uniform_hex(sz, sz, hole_radius/pscale, between_pix=bpix).T
 
     for i in range(len(X_m)):
         hexa_p = np.roll(np.roll(
