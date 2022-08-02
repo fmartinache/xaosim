@@ -150,12 +150,13 @@ class Telescope(object):
 
         elif "jwst" in self.iname.lower():
             self.tname = "JWST"
-            self.iname = "NIRISS"
-            self.pdiam = 6.5
+            self.pdiam = 6.6
             self.PA = 0.0
-            pup = pupil.JWST(rsz, pscale=self.pdiam/rsz, aperture="CLEARP")
             if "nrm" in self.iname.lower():
                 pup = pupil.JWST_NRM(rsz, pscale=self.pdiam/rsz)
+            else:
+                pup = pupil.JWST(rsz, pscale=self.pdiam/rsz, aperture="CLEARP")
+            self.iname = "NIRISS"
 
         elif "kernel" in self.iname.lower():
             self.tname = "BENCH"
@@ -256,6 +257,18 @@ class instrument(metaclass=Singleton):
             print("Creating %s" % (self.name,))
             self.add_imaging_camera(
                 name="HST_NIC1", ysz=84, xsz=84, pscale=43.0, wl=1.9e-6,
+                slot=1)
+
+        # ---------------------------------------------------------------------
+        # JWST NIRISS template: one camera for now (no DM control yet?)
+        # ---------------------------------------------------------------------
+        elif "jwst" in self.name.lower():
+            print("Creating %s" % (self.name,))
+            iname = "NIRISS"
+            if "nrm" in self.name.lower():
+                iname += "_NRM"
+            self.add_imaging_camera(
+                name=iname, ysz=81, xsz=81, pscale=65.0, wl=4.8e-6,
                 slot=1)
 
         # ---------------------------------------------------------------------

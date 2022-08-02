@@ -19,5 +19,7 @@
 
 from .instrument import *
 
+import numpy.fft as fftmod
+
 __version__ = "2.0.0"
 print("XAOSIM version ", __version__)
