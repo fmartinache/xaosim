@@ -626,16 +626,22 @@ def KBENCH(sz, pscale=100.0, noc=False, between_pix=False):
 
 
 # ==================================================================
-def JWST(sz, pscale=0.1, aperture="CLEARP"):
+def JWST(sz, pscale=0.1, aperture="CLEARP",
+         parx=0.02579476, pary=0.01289738):
     ''' ---------------------------------------------------------
     Returns a square (sz x sz) array filled with a representation
     of the JWST aperture.
+
+    Note: PAR stands for pupil alignment reference. It is what
+    makes the difference between CLEAR and CLEARP
 
     Parameters:
     ----------
     - sz       : size of the array (integer)
     - pscale   : pupil pixel scale in meter / pixel (float)
     - aperture : identifier (string: default "CLEARP")
+    - parx     : hrztal PAR misalignment (default=0.02579476)
+    - pary     : vrtcal PAR misalignment (default=0.01289738)
 
     Remarks:
     -------
@@ -647,9 +653,9 @@ def JWST(sz, pscale=0.1, aperture="CLEARP"):
     --------------------------------------------------------- '''
     bpix = (sz % 2 == 0)
     yy, xx = _xyic(sz, sz, between_pix=bpix)
-    sp_th = 0.1   # true thickness spider in meters
+    sp_th = 0.125  # true thickness spider in meters
     trad = 1.32   # true segment radius in meters
-    orad = 1.00   # true PAR obstruction radius in meters
+    orad = 1.02   # true PAR obstruction radius in meters
     SP_th = 0.33  # true PAR spider thickness in meters
 
     seg_rad = int(trad / pscale)   # segment radius in pixels
@@ -686,11 +692,15 @@ def JWST(sz, pscale=0.1, aperture="CLEARP"):
     if aperture == "CLEARP":
         mask_obs = 1-uniform_disk(sz, sz, PAR_rad)
 
+        offx = int(np.round(parx/pscale))
+        offy = int(np.round(pary/pscale))
+
         sp1 = 1 - (np.abs(xx) <= SPI_hthk) * (yy > 0)
         sp2 = rotate(sp1, 120.0, order=0, reshape=False)
         sp3 = np.fliplr(sp2)
 
         mask_obs *= sp1 * sp2 * sp3
+        mask_obs = np.roll(mask_obs, (offx, offy), axis=(1, 0))
         res *= mask_obs
     return res
 

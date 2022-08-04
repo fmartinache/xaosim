@@ -268,7 +268,7 @@ class instrument(metaclass=Singleton):
             if "nrm" in self.name.lower():
                 iname += "_NRM"
             self.add_imaging_camera(
-                name=iname, ysz=81, xsz=81, pscale=65.0, wl=4.8e-6,
+                name=iname, ysz=80, xsz=80, pscale=65.6, wl=4.8e-6,
                 slot=1)
 
         # ---------------------------------------------------------------------
