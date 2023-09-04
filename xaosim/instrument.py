@@ -68,6 +68,15 @@ class Telescope(object):
     '''
     # ==================================================
     def __init__(self, name="", size=256, radius=128, rebin=5):
+        ''' Instantiation of a Telescope:
+
+        Parameters:
+        ----------
+        - name   : a string descriving the telescope
+        - size   : size of the array describing the telescope pupil (pixels)
+        - radius : pupil radius (in pixels) within the array
+        - rebin  : ovsersampling parameter for finer pupil model
+        ------------------------------------------------------------------- '''
         self.tname = "EMPTY"    # telescope name
         self.iname = name       # instrument name
         self.pdiam = 1.0        # telescope diameter (meters)
@@ -76,6 +85,12 @@ class Telescope(object):
         self.size = size
         self.radius = radius
         self.update_pupil()     # update pupil array
+
+    # ==================================================
+    def __str__(self):
+        msg = f"Telescope : {self.tname} - diameter : {self.pdiam:.1f} meters\n"
+        msg += f"Instrument : - {self.iname}\n"
+        return msg
 
     # ==================================================
     def get_pupil(self,):
@@ -96,7 +111,6 @@ class Telescope(object):
             self.tname = "Subaru"
             self.iname = "SCExAO"
             self.pdiam = 7.92  # telescope pupil diameter
-            self.PA = 0.0
             pup = 1.0 * pupil.subaru(
                 rsz, rsz, rrad, spiders=True, between_pix=True)
 
@@ -104,7 +118,6 @@ class Telescope(object):
             self.tname = "ELT"
             self.iname = "petalometer"
             self.pdiam = 39  # telescope "diameter"
-            self.PA = 0.0
             pup = pupil.ELT(rsz, pscale=self.pdiam/rsz, spiders=True)
 
         elif "hst" in self.iname.lower():
@@ -119,8 +132,18 @@ class Telescope(object):
             self.tname = "C2PU"
             self.iname = "AOC"
             self.pdiam = 1.0
-            self.PA = 0.0
             pup = pupil.uniform_disk(rsz, rsz, rrad)
+
+        elif "baldr" in self.iname.lower():
+            self.tname = "VLTI"
+            if "ut" in self.iname.lower():
+                self.pdiam = 8.0
+                pup = pupil.VLT(rsz, rsz, rrad)
+                self.iname = "BALDR - UT"
+            else:
+                self.pdiam = 1.8
+                pup = pupil.VLT(rsz, rsz, rrad)
+                self.iname = "BALDR - AT"
 
         elif "gravity" in self.iname.lower():
             self.tname = "VLT"
@@ -216,6 +239,20 @@ class instrument(metaclass=Singleton):
                 name="MaunaKea", r0=0.5, L0=10.0, fc=24.5, correc=10.0)
 
         # ---------------------------------------------------------------------
+        # BALDR template: DM, atmosphere & pupil viewing camera
+        # ---------------------------------------------------------------------
+        elif "baldr" in self.name.lower():
+            print(f"Creating {self.name}")
+            self.add_corono_camera(name="BALDR", ysz=12, xsz=12, pview=12,
+                                   pscale=20, wl=1.6e-6, slot=1)
+
+            self.add_membrane_DM(
+                dms=12, nch=8, na0=12, iftype="cosine", ifr0=1.0)
+
+            self.add_phscreen(
+                name="Paranal", r0=0.5, L0=10.0, fc=24.5, correc=1.0)
+
+        # ---------------------------------------------------------------------
         # AOC template: DM, atmosphere and 2 cameras (vis SH + imager IR)
         # ---------------------------------------------------------------------
         elif "aoc" in self.name.lower():
@@ -309,6 +346,16 @@ class instrument(metaclass=Singleton):
         else:
             print("""No template available for '%s':
             assuming that you want a custom configuration...""" % (self.name))
+
+    # ==================================================
+    def __str__(self):
+        msg = "XAOSIM virtual instrument:\n" + 26*"-" + "\n"
+        msg += self.tel.__str__()
+        msg += f"\n"
+
+        if self.cam is not None:
+            msg += self.cam.__str__()
+            return msg
 
     # ==================================================
     def _install_camera(self, cam, slot=1):
@@ -430,7 +477,7 @@ class instrument(metaclass=Singleton):
 
     # ==================================================
     def add_corono_camera(self, name="corocam", ysz=256, xsz=320,
-                          lstop=None, fpm=None,
+                          lstop=None, fpm=None, pview=False,
                           pscale=16.7, wl=1.6e-6, slot=1):
         ''' -------------------------------------------------------------------
         Adds a coronagraphic camera to the instrument.
@@ -442,6 +489,7 @@ class instrument(metaclass=Singleton):
         - xsz    : horizontal size of the detector in pixels (default = 320)
         - lstop  : 2D array describing the Lyot-stop (default = None)
         - fpm    : 2D array describing the focal plane mask (default = None)
+        - pview  : is this a pupil viewing camera, like ZELDA (default = False)
         - pscale : detector plate scale in mas/pixels (default = 16.7)
         - wl     : wavelength of observation in meters (default = 1.6e-6)
         - slot   : marks the "position" of the camera (1 or 2, default = 1)
@@ -450,7 +498,7 @@ class instrument(metaclass=Singleton):
         shmf = name.lower() + ".im.shm"
         tmp = CoroCam(name=name, csz=self.csz, ysz=ysz, xsz=xsz,
                       pupil=self.tel.pupil, pdiam=self.tel.pdiam,
-                      fpm=fpm, lstop=lstop,
+                      fpm=fpm, lstop=lstop, pview=pview,
                       pscale=pscale, wl=wl, shdir=self.shdir, shmf=shmf)
 
         self._install_camera(tmp, slot=slot)
@@ -609,9 +657,9 @@ class instrument(metaclass=Singleton):
             phscreen = self.atmo.shm_phs.get_data()
 
         if self.cam is not None:
-            self.cam.make_image(dmmap=dmmap, phscreen=phscreen)
+            self.cam.make_image(dmmap=dmmap, opdmap=phscreen)
         if self.cam2 is not None:
-            self.cam2.make_image(dmmap=dmmap, phscreen=phscreen)
+            self.cam2.make_image(dmmap=dmmap, opdmap=phscreen)
         return(self.cam.get_image())
 
     # ==================================================

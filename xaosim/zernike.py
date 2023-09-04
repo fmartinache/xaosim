@@ -136,7 +136,7 @@ def mkzer(n, m, size, rad, limit=False):
     return res
 
 
-def zer_mode_bank_2D(sz, i0, i1):
+def zer_mode_bank_2D(sz, i0, i1, limit=True):
     ''' ------------------------------------------
     Returns a 3D array containing 2D (sz x sz)
     maps of Zernike modes for Noll index going
@@ -147,11 +147,12 @@ def zer_mode_bank_2D(sz, i0, i1):
     - sz: the size of the contained 2D arrays
     - i0: the first Zernike index to be used
     - i1: the last Zernike index to be used
+    - limit: boolean (if True, mode confined to "rad")
     ------------------------------------------ '''
     dZ = i1 - i0 + 1
     res = np.zeros((dZ, sz, sz))
     for i in range(i0, i1+1):
-        res[i-i0] = mkzer1(i, sz, sz/2, True)
+        res[i-i0] = mkzer1(i, sz, sz/2, limit=limit)
     return(res)
 
 
@@ -166,7 +167,7 @@ def mkzer1(jj, sz, rad, limit=False):
     - jj: the Noll index for the polynomial
     - sz: the size of the 2D array
     - rad: the radius of the circular area covered
-    - limit: boolean (if True, mode extends beyond "rad"
+    - limit: boolean (if True, mode confined to "rad")
    ---------------------------------------------------- '''
     (n, m) = noll_2_zern(jj)
     return mkzer(n, m, sz, rad, limit).astype(np.float32)

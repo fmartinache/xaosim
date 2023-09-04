@@ -12,6 +12,7 @@ generic camera like the Shack Hartman camera.
 import numpy as np
 import threading
 from .pupil import uniform_disk as ud, _xyic
+from  .sft import sft
 from .shmlib import shm
 import time
 
@@ -113,9 +114,17 @@ class Cam(object):
         # final tune-up
         self.update_cam()
 
+
+    # =========================================================================
+    def __str__(self):
+        msg = f"Camera size : {self.xsz} x {self.ysz} pixels\n"
+        msg += f"Wavelengtn  : {self.wl * 1e6:.2f} microns\n"
+        msg += f"Plate scale : {self.pscale:.2f} mas/pixel\n"
+        return msg
+
     # =========================================================================
     def update_cam(self, wl=None, pscale=None,
-                   between_pixel=None, wft_unit=None):
+                   between_pixel=None, wft_unit=None, pview=None):
         ''' -------------------------------------------------------------------
         Change the filter, the plate scale or the centering of the camera
 
@@ -124,6 +133,7 @@ class Cam(object):
         - wl            : the central wavelength of observation, in meters
         - between_pixel : whether FT are centered between four pixels or not
         - wft_unit      : "micron" or "nanometer"
+        - pview         : number of pixels for a pupil viewing camera
         ------------------------------------------------------------------- '''
         wasgoing = False
 
@@ -168,6 +178,10 @@ class Cam(object):
                 print("wavefront unit set to 'nanometer'")
             else:
                 print("wavefront unit: 'micron' or 'nanometer' only!")
+
+        if pview is not None:
+            self.pview = pview
+            print(f"pupil viewing mode set to {pview} pixels")
 
         if wasgoing:
             self.start(
@@ -443,7 +457,7 @@ class CoroCam(Cam):
 
     # =========================================================================
     def __init__(self, name="SCExAO_coro", csz=400, ysz=256, xsz=320,
-                 pupil=None, fpm=None, lstop=None,
+                 pupil=None, fpm=None, lstop=None, pview=None,
                  pdiam=7.92, pscale=10.0, wl=1.6e-6,
                  shmf="scexao_coro.im.shm", shdir="/dev/shm/"):
         ''' Default instantiation of a coronagraphic cam object:
@@ -457,11 +471,19 @@ class CoroCam(Cam):
         - pupil   : (csz x csz) the pupil (possibly apodized)
         - fpm     : (csz x csz) the focal plane mask
         - lstop   : (csz x csz) the lyot stop
+        - pview   : (psz) size of pupil viewing mode in pixels? (ex: ZELDA)
 
         - pscale  : the plate scale of the image, in mas/pixel
         - wl      : the central wavelength of observation, in meters
         - shmf    : the name of the file used to point the shared memory
         - shdir   : the name of the shared memory directory
+
+        Note:
+        ----
+        For a pupil viewing camera (eg. ZELDA), one should adapt the plate scale
+        in the intermediate focal plane along with the computation resolution
+        (csz) to compute things with enough finesse... that can be better than
+        Nyquist.
         ------------------------------------------------------------------- '''
         super(CoroCam, self).__init__(
             name=name, csz=csz, ysz=ysz, xsz=xsz, pupil=pupil,
@@ -469,11 +491,13 @@ class CoroCam(Cam):
 
         del self.corono  # no ideal coronagraph here!
         self.btwn_pixel = True
+        self.pview = pview
         self.isz = self.csz  # full Fourier computation
         self.x0 = (self.isz - self.xsz) // 2
         self.y0 = (self.isz - self.ysz) // 2
         self.x1 = self.x0 + self.xsz
         self.y1 = self.y0 + self.ysz
+        self.nld0 = self.isz / self.ld0           # nb of l/D across the frame
 
         # handling of the coronagraph parts
         if fpm is None:
@@ -504,7 +528,10 @@ class CoroCam(Cam):
         - dmmap   : (optional) a deformable mirror displacement map
         - nochange: (optional) a flag to skip the computation!
 
-        !!!!!!! NOT THOROUGHLY TESTED YET !!!!!!!
+        Note:
+        ----
+        Implementing a camera pupil viewing mode for this coronagraphic 
+        camera that is useful to simulate a ZELDA setup.
         ------------------------------------------------------------------- '''
 
         # nothing to do? skip the computation!
@@ -518,12 +545,17 @@ class CoroCam(Cam):
         wf *= self.pupil                               # apply the pupil mask
         self._b4m = self.sft(wf)
         self._afm = self._b4m * self.fpm
-        self._b4l = self.sft(self._afm)
-        self._afl = self._b4l * self.lstop
-        self._cca = self.sft(self._afl)
 
-        img = np.abs(self._cca)**2                   # intensity
-        frm = img[self.y0:self.y1, self.x0:self.x1]  # image crop
+        if self.pview is not None:  # pupil viewing camera!
+            self._cca = sft(self._afm, self.pview, self.nld0, inv=True, btwn_pix=True)
+            frm = np.abs(self._cca)**2  # intensity
+
+        else:  # actual coronagraph!
+            self._b4l = self.sft(self._afm)
+            self._afl = self._b4l * self.lstop
+            self._cca = self.sft(self._afl)
+            img = np.abs(self._cca)**2  # intensity
+            frm = img[self.y0:self.y1, self.x0:self.x1]  # image crop
 
         if self.phot_noise:  # need to be recast to fit original format
             frm = np.random.poisson(lam=frm.astype(np.float64), size=None)
