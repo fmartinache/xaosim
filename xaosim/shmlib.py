@@ -300,7 +300,7 @@ class shm:
         - delete shared memory file
         -------------------------------------------------------------- '''
         c0 = self.c0_offset                      # counter offset
-        self.buf[c0:c0+8] = struct.pack('Q', 0)  # set counter to zero
+        # self.buf[c0:c0+8] = struct.pack('Q', 0)  # set counter to zero
         self.buf.close()
         os.close(self.fd)
         self.fd = 0

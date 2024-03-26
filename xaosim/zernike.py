@@ -156,6 +156,29 @@ def zer_mode_bank_2D(sz, i0, i1, limit=True):
     return(res)
 
 
+def zer_name_list(i0, i1):
+    ''' ------------------------------------------
+    Returns a list of names of zernike modes for
+    the Noll index going from i0 to i1 included.
+
+    Note that the first Noll index is 1.
+    ------------------------------------------ '''
+    if not i1 > i0 > 0:
+        return []
+    zer_names = ['piston', 'x-tilt', 'y-tilt', 'defocus',
+                 'obliq. astig.', 'vertc. astig.',
+                 'vertc. coma', 'horiz. coma',
+                 'vertc. trefoil', 'obliq. trefoil',
+                 'prim. spherical',
+                 'vertc. sec. astig.', 'obliq. sec. astig.',
+                 'vertc. quadrafoil', 'obliq. quadrafoil']
+
+    zer_list = [f"zernike_{ii:02d}" for ii in range(20)]
+    for ii, lbl in enumerate(zer_names):
+        zer_list[ii] = lbl
+    return zer_list[i0-1:i1]
+
+
 def mkzer1(jj, sz, rad, limit=False):
     ''' ----------------------------------------------------
     returns a 2D array of size sz,
@@ -170,7 +193,10 @@ def mkzer1(jj, sz, rad, limit=False):
     - limit: boolean (if True, mode confined to "rad")
    ---------------------------------------------------- '''
     (n, m) = noll_2_zern(jj)
-    return mkzer(n, m, sz, rad, limit).astype(np.float32)
+    if jj == 1:
+        return np.ones((sz, sz))
+    else:
+        return mkzer(n, m, sz, rad, limit)  # .astype(np.float32)
 
 
 def mkzer_vector(n, m, xymask):
