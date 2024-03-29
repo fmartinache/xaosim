@@ -76,6 +76,7 @@ class Phscreen(object):
         self.r0 = r0
         self.wl = wl
         self.L0 = L0
+        self.split_mode = False  # ASGARD special mode
 
         self.rms_i = 0.0
         self.correc = correc
@@ -103,17 +104,51 @@ class Phscreen(object):
         self.yynorm2 = np.sum(self.yy**2)
 
     # ==============================================================
-    def start(self, delay=0.1):
+    def set_split_mode(self, nn=4, ssz=48):
+        ''' --------------------------------------------------------
+        Special mode developed for ASGARD sim.
+
+        The phase screen is split into n sub-arrays simultaneously
+        refreshed.
+
+        Parameters:
+        ----------
+        - nn: the number of splits (should be 4 for ASGARD)
+        - ssz: the subarray size (keep it < self.csz / nn)
+        ---------------------------------------- '''
+        self.split_mode = True
+        self.nsplit = nn
+        self.ssz = ssz
+        sstep = self.csz // nn  # split step
+        self.split_ii0 = (sstep - ssz) // 2 + sstep * np.arange(nn)
+        self.split_ii1 = self.split_ii0 + ssz
+
+        tmp = np.zeros((ssz, ssz))
+        self.split_shm_phs = []
+        for ii in range(self.nsplit):
+            self.split_shm_phs.append(
+                shm(self.shdir + f'split_{ii}_' + self.shmf,
+                    data=tmp, verbose=False))
+        return
+
+    # ==============================================================
+    def start(self, delay=0.1, dx=2, dy=1):
         ''' ----------------------------------------
         High-level accessor to start the thread of
-        the phase screen server infinite loop
+        the phase screen server infinite loop.
+
+        Parameters:
+        ----------
+        - delay: the time delay between refresh  (0.1 sec)
+        - dx: the screen slide increment per iteration
+        - dy: the screen slide increment per iteration
         ---------------------------------------- '''
         if not self.keepgoing:
 
             self.kolm2 = np.tile(self.kolm, (2, 2))
 
             self.keepgoing = True
-            t = threading.Thread(target=self.__loop__, args=(delay,))
+            t = threading.Thread(target=self.__loop__, args=(delay, dx, dy))
             t.start()
             print("The *ATMO* phase screen server was started")
         else:
@@ -202,20 +237,22 @@ class Phscreen(object):
             self.shm_phs.set_data(subk + self.qstatic)
 
     # ==============================================================
-    def __loop__(self, delay=0.1):
+    def __loop__(self, delay=0.1, dx=2, dy=1):
         ''' ------------------------------------------
         Main loop: frozen screen slid over the aperture
 
         Options:
         ---------
         - delay: the time delay between refresh  (0.1 sec)
+        - dx: the screen slide increment per iteration
+        - dy: the screen slide increment per iteration
         -----------------------------------------  '''
 
         while self.keepgoing:
-            self.offx += 2
-            self.offy += 1
-            self.offx = self.offx % self.csz
-            self.offy = self.offy % self.csz
+            self.offx += dx
+            self.offy += dy
+            self.offx %= self.csz
+            self.offy %= self.csz
 
             subk = self.kolm2[self.offx:self.offx+self.csz,
                               self.offy:self.offy+self.csz].copy()
@@ -226,5 +263,26 @@ class Phscreen(object):
                 subk -= ttx * self.xx + tty * self.yy
 
             self.rms_i = subk.std()
-            self.shm_phs.set_data(subk + self.qstatic)
+
+            tmp = subk + self.qstatic
+            self.shm_phs.set_data(tmp)
+
+            if self.split_mode is True:
+                ii0 = self.split_ii0
+                ii1 = self.split_ii1
+                for ii in range(self.nsplit):
+                    self.split_shm_phs[ii].set_data(
+                        tmp[ii0[ii]:ii1[ii], 0:self.ssz])
             time.sleep(delay)
+
+    # =========================================================================
+    def close(self,):
+        ''' ----------------------------------------
+        Closes the linked shared memory structure
+        ---------------------------------------- '''
+        self.shm_phs.close()
+        if self.split_mode:
+            for ii in range(self.nsplit):
+                self.split_shm_phs[ii].close()
+            self.split_shm_phs = []
+        return

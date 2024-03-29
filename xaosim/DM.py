@@ -134,6 +134,15 @@ class DM(object):
                                sz=self._if_asz, ifs=self._if_psz)
 
     # ==================================================
+    def __str__(self):
+        msg = f"Continuous Deformable Mirror:\n"
+        msg += f"- {self.dms}x{self.dms} {self.dmtype} actuator grid\n"
+        msg += f"- {self.nch} control channels\n"
+        msg += f"- Computation size = {self.csz} "
+        msg += f"({self.astep} pixels / actuators)\n"
+        return msg
+
+    # ==================================================
     def update_infun(self, iftype=None, ifr0=None):
         ''' ----------------------------------------
         Updates the DM influence function!

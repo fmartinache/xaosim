@@ -11,7 +11,7 @@ Shared memory viewer.
 from xaosim.QtMain import QtMain, QApplication
 from PyQt5 import QtCore, QtGui, uic
 from PyQt5.QtCore import QThread
-from PyQt5.QtWidgets import QLabel, QMainWindow
+from PyQt5.QtWidgets import QLabel, QMainWindow, QFileDialog
 from PyQt5.QtGui import QImage
 
 import threading
@@ -106,12 +106,11 @@ class MyWindow(QMainWindow):
         # ==============================================
         # prepare the display
         # ==============================================
+
         self.gView_shm.hideAxis('left')
         self.gView_shm.hideAxis('bottom')
-
         self.imv_data = pg.ImageItem()
         self.overlay = pg.GraphItem()
-
         self.gView_shm.addItem(self.imv_data)
 
         # ==============================================
@@ -119,19 +118,16 @@ class MyWindow(QMainWindow):
         # ==============================================
         self.dspB_disp_min.valueChanged[float].connect(self.update_vmin)
         self.dspB_disp_max.valueChanged[float].connect(self.update_vmax)
-
         self.chB_min.stateChanged[int].connect(self.update_vmin)
         self.chB_min.stateChanged[int].connect(self.update_vmax)
-
         self.chB_nonlinear.stateChanged[int].connect(self.update_nonlinear)
-
         self.chB_dark_sub.stateChanged[int].connect(self.update_dark_state)
-
         self.cmB_cbar.addItems(
             ['magma', 'gray', 'hot', 'cool', 'bone', 'jet', 'viridis'])
         self.cmB_cbar.activated[str].connect(self.update_cbar)
         self.cmB_cbar.setCurrentIndex(0)
         self.update_cbar()
+
         # ==============================================
         #             top-menu actions
         # ==============================================
@@ -140,19 +136,26 @@ class MyWindow(QMainWindow):
 
         self.actionOpen.triggered.connect(self.load_shm)
         self.actionLoadDark.triggered.connect(self.load_shm_drk)
+        self.setMinimumSize(600, 400)
 
-        if args is not []:
-            target = str(args[0])
+        if sys.argv[1:] != []:
+            # breakpoint()
+            target = str(sys.argv[1])
             if os.path.isfile(target):
                 self.mySHM = shm(target)
+                self.array_title.setText(target)
                 self.live_counter = -1
                 self.naxis = self.mySHM.mtdata['naxis']
                 if self.mySHM.empty:
                     self.mySHM = None
+                else:
+                    self.auto_resize_window()
+            else:
+                print("No file loaded")
 
-            if len(args) > 1:
+            if len(sys.argv[1:]) > 1:
                 try:
-                    self.myslice = int(args[1])
+                    self.myslice = int(sys.argv[2])
                 except ValueError:
                     print("Not a valid slice")
                     self.myslice = 0
@@ -222,7 +225,7 @@ class MyWindow(QMainWindow):
 
         self.mySHM.read_keywords()
         if self.naxis == 3:
-            msg += "imsize = %d x %d x %d\n" % self.mySHM.mtdata["size"]
+            msg += "imsize = %d x %d x %d\n\n" % self.mySHM.mtdata["size"]
         else:
             msg += "imsize = %d x %d\n" % self.mySHM.mtdata["size"][1:]
 
@@ -240,30 +243,58 @@ class MyWindow(QMainWindow):
         self.lbl_stats.setText(msg)
 
     # =========================================================
+    def auto_resize_window(self):
+        imsize = self.mySHM.get_data().shape
+        imratio = 1.0
+        if self.naxis == 2:
+            imratio = imsize[1] / imsize[0]
+
+        vsize = self.gView_shm.geometry()  # view size
+
+        hratio = vsize.width() / imsize[1]
+        vratio = vsize.height() / imsize[0]
+
+        if hratio > vratio:  # better horizontal "resolution"
+            self.resize(vsize.width() + 200, int(vsize.width() / imratio) + 46)
+        else:
+            self.resize(int(vsize.height() * imratio) + 200, vsize.height() + 46)
+        return
+
+    # =========================================================
     def load_shm(self):
-        fname = QtGui.QFileDialog.getOpenFileName(
+        fname = QFileDialog.getOpenFileName(
             self, 'Load SHM file', '/dev/shm/*.im.shm')[0]
 
-        if self.mySHM is not None:
-            self.mySHM = None
+        if fname != '':  # a new shm file was indeed selected
+            if self.mySHM is not None:
+                self.mySHM.close(erase_file=False)
+                self.mySHM = None
+        else:  # false alert: don't change anything
+            return
 
+        self.array_title.setText(fname)
         self.mySHM = shm(str(fname))
         self.live_counter = -1
         self.naxis = self.mySHM.mtdata['naxis']
         self.myslice = 0
         self.myDRK = np.zeros_like(self.mySHM.get_data())
+        self.auto_resize_window()
 
     # =========================================================
     def load_shm_drk(self):
-        fname = QtGui.QFileDialog.getOpenFileName(
+        fname = QFileDialog.getOpenFileName(
             self, 'Load SHM file for dark', '/dev/shm/*.im.shm')[0]
 
-        try:
-            temp = shm(str(fname))
-            self.myDRK = temp.get_data()
-            temp = None
-        except:
-            self.myDRK = np.zeros_like(self.mySHM.get_data())
+        if fname != '':  # a new shm file was indeed selected
+            try:
+                temp = shm(str(fname))
+                self.myDRK = temp.get_data()
+                temp = None
+            except:
+                self.myDRK = np.zeros_like(self.mySHM.get_data())
+        else:
+            print("No new dark was loaded")
+            return
 
     # =========================================================
     def refresh_all(self):
