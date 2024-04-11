@@ -66,7 +66,7 @@ class DM(object):
     def __init__(self, instrument="SCExAO", dms=50, nch=8,
                  shm_root="dmdisp", shdir="/dev/shm/",
                  csz=256, na0=50.0, dx=0.0, dy=0.0,
-                 iftype="", ifr0=1.0):
+                 iftype="", ifr0=1.0, dtype=np.float64):
         ''' -----------------------------------------
         Constructor for instance of deformable mirror
         Parameters:
@@ -95,8 +95,9 @@ class DM(object):
         self.dmtype = "square"  # square grid of actuators
         self.iftype = iftype    # type of influence function
         self.ifr0 = ifr0        # infl. function size (in actuators)
+        self.dtype = dtype      # data type written to shared memory
 
-        self.dmd0 = np.zeros((dms, dms), dtype=np.float32)
+        self.dmd0 = np.zeros((dms, dms), dtype=dtype)
         self.dmd = self.dmd0.copy()
         self.shm_cntr = np.zeros(nch) - 1
 
@@ -179,11 +180,15 @@ class DM(object):
         self.wft.close()
 
     # ==================================================
-    def get_counter_channel(self, chn):
+    def get_counter_channel(self, chn=0):
         ''' ----------------------------------------
         Return the current channel counter value.
         Reads from the already-opened shared memory
         data structure.
+
+        Parameters:
+        ----------
+        - chn  : the channel (integer)
         ---------------------------------------- '''
         cnt = 0
         if chn < self.nch:
@@ -201,7 +206,7 @@ class DM(object):
         ----------
         - chn  : the channel (integer)
         ---------------------------------------- '''
-        if 0 < chn < self.nch:
+        if 0 <= chn < self.nch:
             eval("self.disp%d.set_data(self.dmd0)" % (chn,))
 
     # ==================================================
@@ -211,11 +216,11 @@ class DM(object):
 
         Parameters:
         ----------
+        - dmap : float ndarray (size dms x dms)
         - chn  : the channel (integer)
-        - dmap : float32 ndarray (size dms x dms)
         ---------------------------------------- '''
         if dmap is not None:
-            if 0 < chn < self.nch:
+            if 0 <= chn < self.nch:
                 eval("self.disp%d.set_data(dmap)" % (chn,))
 
     # ==================================================
@@ -228,7 +233,7 @@ class DM(object):
         - chn: the channel (integer)
         ---------------------------------------- '''
         res = None
-        if 0 < chn < self.nch:
+        if 0 <= chn < self.nch:
             res = eval("self.disp%d.get_data()" % (chn,))
         return res
 

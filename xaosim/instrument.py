@@ -11,6 +11,7 @@ from . import pupil
 from .camera import Cam, SHCam, CoroCam
 from .DM import DM, HexDM
 from .atmosphere import Phscreen
+from .pupil import uniform_disk as ud
 
 import matplotlib.pyplot as plt
 plt.ion()
@@ -99,10 +100,10 @@ class Telescope(object):
     # ==================================================
     def update_pupil(self,):
         ''' Update telescope properties based on provided name
-        ---------------------------------------------------------------------------
+        -----------------------------------------------------------------------
 
         Default config: an unobstructed  1-meter diameter telescope
-        ---------------------------------------------------------------------------
+        -----------------------------------------------------------------------
         '''
         rsz = self.size * self.rebin
         rrad = self.radius * self.rebin
@@ -233,7 +234,8 @@ class instrument(metaclass=Singleton):
                     pscale=16.7, wl=1.6e-6, slot=1)
 
             self.add_membrane_DM(
-                dms=50, nch=8, na0=49, iftype="cosine", ifr0=1.0)
+                dms=50, nch=8, na0=49, iftype="cosine",
+                ifr0=1.0, dtype=np.float32)
 
             self.add_phscreen(
                 name="MaunaKea", r0=0.5, L0=10.0, fc=24.5, correc=10.0)
@@ -245,6 +247,9 @@ class instrument(metaclass=Singleton):
             print(f"Creating {self.name}")
             self.add_corono_camera(name="BALDR", ysz=12, xsz=12, pview=12,
                                    pscale=20, wl=1.6e-6, slot=1)
+            # Zernike phase mask
+            self.cam.fpm = 1 - (1 - 1j) * ud(csz, csz, self.cam.ld0,
+                                             between_pix=True)
 
             self.add_membrane_DM(
                 dms=12, nch=8, na0=12, iftype="cosine", ifr0=1.0)
@@ -531,7 +536,8 @@ class instrument(metaclass=Singleton):
 
     # ==================================================
     def add_membrane_DM(
-            self, dms=50, nch=4, na0=49, iftype="cosine", ifr0=1.0):
+            self, dms=50, nch=4, na0=49, iftype="cosine",
+            ifr0=1.0, dtype=np.float64):
         ''' -------------------------------------------------------------------
         Adds a continuous membrane DM made of a regular grid of actuators
         to an instrument.
@@ -543,10 +549,11 @@ class instrument(metaclass=Singleton):
         - na0    : number of actuators across a pupil diameter (default = 49)
         - iftype : influence function type (default = "cosine"
         - ifr0   : influence function radius in actuator size (default = 1.0)
+        - dtype  : the data type written to shared memory (default np.float64)
         ------------------------------------------------------------------- '''
         if self.DM is None:
             self.DM = DM(dms=dms, nch=nch, shdir=self.shdir,
-                         csz=self.csz, na0=na0, iftype=iftype)
+                         csz=self.csz, na0=na0, iftype=iftype, dtype=dtype)
         else:
             print("A DM is already in place. Remove to replace it!")
 

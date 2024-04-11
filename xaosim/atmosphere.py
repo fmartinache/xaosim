@@ -115,7 +115,7 @@ class Phscreen(object):
         ----------
         - nn: the number of splits (should be 4 for ASGARD)
         - ssz: the subarray size (keep it < self.csz / nn)
-        ---------------------------------------- '''
+        -------------------------------------------------------- '''
         self.split_mode = True
         self.nsplit = nn
         self.ssz = ssz
@@ -129,6 +129,23 @@ class Phscreen(object):
             self.split_shm_phs.append(
                 shm(self.shdir + f'split_{ii}_' + self.shmf,
                     data=tmp, verbose=False))
+        return
+
+    # ==============================================================
+    def update_piston(self, piston=np.zeros(4)):
+        ''' --------------------------------------------------------
+        Another ASGARD specific tidbit: add piston to the atmosphere
+
+        Parameters:
+        ----------
+        - piston: a 1D vector of pistons (in meters)
+        -------------------------------------------------------- '''
+        tmp = np.zeros_like(self.qstatic)
+        ii0 = self.split_ii0
+        ii1 = self.split_ii1
+        for ii in range(self.nsplit):
+            tmp[ii0[ii]:ii1[ii], 0:self.ssz] = piston[ii]
+        self.set_qstatic(tmp)
         return
 
     # ==============================================================
