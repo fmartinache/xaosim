@@ -45,38 +45,24 @@ def main():
 #                               Tools
 # =====================================================================
 def arr2im(arr, vmin=False, vmax=False, pwr=1.0, cmap=None, gamma=1.0):
-    ''' ------------------------------------------
-    convert numpy array into image for display
+    ''' --------------------------------------------------------
+    convert 2D numpy array into image for display
 
-    limits dynamic range, power coefficient and
-    applies colormap
-    ------------------------------------------ '''
-    arr2 = arr.astype('float')
-    if vmin is False:
-        mmin = arr2.min()
-    else:
-        mmin = vmin
-
-    if vmax is False:
-        mmax = arr2.max()
-    else:
-        mmax = vmax
+    limits dynamic range, power coefficient and applies colormap
+    -------------------------------------------------------- '''
+    arr2 = arr.astype('float')  # local array is modified
+    mmin = arr2.min() if vmin is False else vmin
+    mmax = arr2.max() if vmax is False else vmax
+    mycmap = cm.magma if cmap is None else cmap
 
     arr2 -= mmin
     if mmax != mmin:
         arr2 /= (mmax-mmin)
-
     arr2 = arr2**pwr
-
-    if cmap is None:
-        mycmap = cm.jet
-    else:
-        mycmap = cmap
 
     res = mycmap(arr2)
     res[:, :, 3] = gamma
     return(res)
-
 
 # =====================================================================
 #                          Main GUI object
@@ -119,7 +105,7 @@ class MyWindow(QMainWindow):
         self.dspB_disp_min.valueChanged[float].connect(self.update_vmin)
         self.dspB_disp_max.valueChanged[float].connect(self.update_vmax)
         self.chB_min.stateChanged[int].connect(self.update_vmin)
-        self.chB_min.stateChanged[int].connect(self.update_vmax)
+        self.chB_max.stateChanged[int].connect(self.update_vmax)
         self.chB_nonlinear.stateChanged[int].connect(self.update_nonlinear)
         self.chB_dark_sub.stateChanged[int].connect(self.update_dark_state)
         self.cmB_cbar.addItems(
