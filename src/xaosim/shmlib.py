@@ -44,6 +44,9 @@ import mmap
 import struct
 import numpy as np
 import time
+import posix_ipc as ipc
+
+# SEMAPHORE_MAXVAL = 10  # constant defined in libImageStreamIO
 
 # ------------------------------------------------------
 #          list of available data types
@@ -116,7 +119,7 @@ Table taken from Python 3 documentation, section 7.1.2.2.
 
 class shm:
     def __init__(self, fname=None, data=None, verbose=False,
-                 packed=False, nbkw=0):
+                 packed=False, nbkw=0, nosem=True):
         ''' --------------------------------------------------------------
         Constructor for a SHM (shared memory) object.
 
@@ -127,7 +130,7 @@ class shm:
         - verbose: optional boolean
         - packed: True -> packed / False -> aligned data format
         - nbkw: # of keywords to be appended to the data structure (optional)
-
+        - nosem: flag to signal whether you use semaphores or not
         Depending on whether the file already exists, and/or some new
         data is provided, the file will be created or overwritten.
         -------------------------------------------------------------- '''
@@ -144,6 +147,7 @@ class shm:
         self.kwsz = struct.calcsize('16s 80s'+' '+self.kwfmt0)  # keyword size
 
         self.empty = False  # control variable
+        self.nosem = nosem  # semaphores or not?
 
         # --------------------------------------------------------------------
         #                dictionary containing the metadata
@@ -180,19 +184,31 @@ class shm:
 
         # ---------------
         self.fname = fname
+
+        if not self.nosem: # create or connect to semaphores!
+            self.nsem = 10
+            shmdir = os.path.dirname(fname)
+            semname = os.path.basename(fname).split('.')[0]  # "dm1disp00"
+
+            self.sems = []
+            for ii in range(self.nsem):
+                semf = ".dev.shm." + semname + f"_sem{ii:02d}"
+                self.sems.append(
+                    ipc.Semaphore(semf, ipc.O_RDWR | ipc.O_CREAT))
+
         if data is not None:
-            print("%s will be overwritten" % (fname,))
+            print(f"{fname} will be overwritten")
             self.create(fname, data, nbkw)
 
         else:
             if verbose:
-                print("reading from existing %s" % (fname,))
+                print(f"reading from existing {fname}")
 
             if not os.path.exists(fname):
                 self.empty = True
                 return
 
-            self.fd = os.open(fname, os.O_RDWR)
+            self.fd = os.open(fname, os.O_RDWR, mode=0o600)
             self.stats = os.fstat(self.fd)
             self.buf_len = self.stats.st_size
             self.buf = mmap.mmap(self.fd, self.buf_len, mmap.MAP_SHARED)
@@ -202,6 +218,7 @@ class shm:
             self.get_data()             # read the main data
             self.create_keyword_list()  # create empty list of keywords
             self.read_keywords()        # populate the keywords with data
+
 
     def create(self, fname, data, nbkw=0):
         ''' --------------------------------------------------------------
@@ -264,7 +281,7 @@ class shm:
         npg = fsz // mmap.PAGESIZE + 1                 # nb pages
 
         self.fd = os.open(fname, os.O_CREAT | os.O_TRUNC | os.O_RDWR)
-        os.fchmod(self.fd, 0o777)  # give RWX access to all users
+        os.fchmod(self.fd, 0o600)  # give RWX access to all users
         os.write(self.fd, b'\x00' * npg * mmap.PAGESIZE)
         self.buf = mmap.mmap(self.fd, npg * mmap.PAGESIZE,
                              mmap.MAP_SHARED, mmap.PROT_WRITE)
@@ -307,9 +324,12 @@ class shm:
         if erase_file:
             try:
                 os.remove(self.fname)
-                print("%s erased!" % (self.fname,))
+                print(f"{self.fname} erased!")
             except FileNotFoundError:
-                print("%s no longer exists already?" % (self.fname,))
+                print(f"{self.fname} no longer exists already?")
+            if not self.nosem:
+                for ii in range(self.nsem):
+                    self.sems[ii].unlink()
         return(0)
 
     def read_meta_data(self, verbose=True):
@@ -425,7 +445,7 @@ class shm:
         -------------------------------------------------------------- '''
 
         if (ii >= self.mtdata['nbkw']):
-            print("Keyword index %d is not allocated and cannot be written")
+            print(f"Keyword index {ii} is not allocated and cannot be written")
             return
 
         # ------------------------------------------
@@ -471,7 +491,7 @@ class shm:
         -------------------------------------------------------------- '''
 
         if (ii >= self.mtdata['nbkw']):
-            print("Keyword index %d is not allocated and cannot be written")
+            print(f"Keyword index {ii} is not allocated and cannot be written")
             return
 
         kwsz = self.kwsz
@@ -521,6 +541,8 @@ class shm:
         atype = self.mtdata['atype']
         self.npdtype = all_dtypes[atype-1]
         self.img_len = self.mtdata['nel'] * self.npdtype().itemsize
+        self.slice_nel = self.mtdata['y'] * self.mtdata['x']
+        self.slice_len = self.slice_nel * self.npdtype().itemsize
 
     def select_atype(self):
         ''' --------------------------------------------------------------
@@ -532,16 +554,17 @@ class shm:
                 self.mtdata['atype'] = i+1
         return(self.mtdata['atype'])
 
-    def get_counter(self,):
+    def get_counter(self, ii=0):
         ''' --------------------------------------------------------------
-        Read the image counter from SHM
+        Read one of the image counters from SHM (default cnt0)
         -------------------------------------------------------------- '''
         c0 = self.c0_offset                              # counter offset
-        cntr = struct.unpack('Q', self.buf[c0:c0+8])[0]  # read from SHM
-        self.mtdata['cnt0'] = cntr                       # update object mtdata
+        c1 = c0 + ii * 8
+        cntr = struct.unpack('Q', self.buf[c1:c1+8])[0]  # read from SHM
+        self.mtdata[f'cnt{ii}'] = cntr                   # update object mtdata
         return(cntr)
 
-    def increment_counter(self,):
+    def increment_counter(self, ii=0):
         ''' --------------------------------------------------------------
         Increment the image counter. Called when writing new data to SHM
         -------------------------------------------------------------- '''
@@ -550,6 +573,90 @@ class shm:
         self.buf[c0:c0+8] = struct.pack('Q', cntr)  # update SHM file
         self.mtdata['cnt0'] = cntr                  # update object mtdata
         return(cntr)
+
+    def catch_up_with_sem(self, semid):
+        ''' --------------------------------------------------------------
+        To run prior to attempting to close a loop on the basis of a SHM!
+
+        Parameters:
+        ----------
+        - semid: the semaphore identifier to catch-up with
+        -------------------------------------------------------------- '''
+        if self.nosem:
+            return -1
+
+        val0 = self.sems[semid].value
+        for ii in range(val0):
+            self.sems[semid].acquire()
+        return self.sems[semid].value
+
+    def _reshape_data(self, data):
+        ''' --------------------------------------------------------------
+        Reshapes the data part according to meta data information
+
+        Parameters:
+        ----------
+        - the data read from SHM
+        -------------------------------------------------------------- '''
+        if self.mtdata['naxis'] == 2:
+            rsz = self.mtdata['y'], self.mtdata['x']
+        else:
+            rsz = self.mtdata['z'], self.mtdata['y'], self.mtdata['x']
+        return np.reshape(data, rsz)
+
+    def get_latest_data(self, semid=None, reform=True):
+        ''' --------------------------------------------------------------
+        Reads and returns the entire RT data part of the SHM file.
+
+        Uses the provided semaphore index to wait on data update.
+        This call will block the code if the semaphore is not released.
+
+        Parameters:
+        ----------
+        - semid: 0 <= int < 10 - the semaphore index to wait on
+        - reform: boolean, if True, reshapes the array in a 2-3D format
+        -------------------------------------------------------------- '''
+        i0 = self.im_offset     # image offset
+        i1 = i0 + self.img_len  # image end
+
+        if semid is not None:
+            if not self.nosem:
+                self.sems[semid].acquire()
+        data = np.frombuffer(self.buf[i0:i1], dtype=self.npdtype)
+
+        if reform:
+            data = self._reshape_data(data)
+
+        return(data)
+
+    def get_latest_data_slice(self, semid=None, reform=True):
+        ''' --------------------------------------------------------------
+        Reads and returns the latest data-slice part of the SHM file only.
+
+        Assumes that the SHM is a 3D cube.
+
+        Uses the provided semaphore index to wait on data update.
+        This call will block the code if the semaphore is not released.
+
+        Parameters:
+        ----------
+        - semid: 0 <= int < 10 - the semaphore index to wait on
+        - reform: boolean, if True, reshapes the array in a 2-3D format
+        -------------------------------------------------------------- '''
+
+        if semid is not None:
+            if not self.nosem:
+                self.sems[semid].acquire()
+
+        slice_index = (self.get_counter() - 1) % self.mtdata['z']
+        i0 = self.im_offset + slice_index * self.slice_len
+        i1 = i0 + self.slice_len
+        data = np.frombuffer(self.buf[i0:i1], dtype=self.npdtype)
+
+        if reform:
+            data = np.reshape(data, (self.mtdata['y'], self.mtdata['x']))
+
+        return(data)
 
     def get_data(self, check=False, reform=True, sleepT=0.001, timeout=5):
         ''' --------------------------------------------------------------
@@ -573,14 +680,11 @@ class shm:
                 time.sleep(sleepT)
                 timen = time.time()
 
-        data = np.fromstring(self.buf[i0:i1], dtype=self.npdtype)
+        data = np.frombuffer(self.buf[i0:i1], dtype=self.npdtype)
 
         if reform:
-            if self.mtdata['naxis'] == 2:
-                rsz = self.mtdata['y'], self.mtdata['x']
-            else:
-                rsz = self.mtdata['z'], self.mtdata['y'], self.mtdata['x']
-            data = np.reshape(data, rsz)
+            data = self._reshape_data(data)
+
         return(data)
 
     def set_data(self, data, check_dt=False):
@@ -603,16 +707,35 @@ class shm:
         i1 = i0 + self.img_len  # image end
 
         if check_dt is True:
-            self.buf[i0:i1] = data.astype(self.npdtype()).tostring()
+            self.buf[i0:i1] = data.astype(self.npdtype()).tobytes()
         else:
             try:
-                self.buf[i0:i1] = data.tostring()
+                self.buf[i0:i1] = data.tobytes()
             except:
                 print("Warning: writing wrong data-type to shared memory")
                 return
+
+        if not self.nosem:
+            self.post_sems()
+
         self.increment_counter()
 
         return
+
+    def post_sems(self, index=-1):
+        ''' --------------------------------------------------------------
+        Post (release) target semaphore
+        if index < 0, post all semaphores
+        -------------------------------------------------------------- '''
+        try:
+            if index < 0:
+                for ii in range(self.nsem):
+                    self.sems[ii].release()
+            else:
+                self.sems[index].release()
+        except:
+            print(f"No semaphores attached to {self.fname}!")
+            pass
 
     def save_as_fits(self, fitsname):
         ''' --------------------------------------------------------------

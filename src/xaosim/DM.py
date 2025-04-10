@@ -277,7 +277,7 @@ class DM(object):
             exec("combi += self.disp%d.get_data()" % (i,))
         self.dmd = combi
         self.disp.set_data(combi)
-        self.wft.set_data(self.map2D(self.csz, self.astep))
+        self.wft.set_data(self.map2D())
         if verbose:
             print("DM shape updated!")
 
@@ -303,34 +303,37 @@ class DM(object):
             time.sleep(delay)
 
     # ==================================================
-    def map2D(self, msz, astep):
+    def map2D(self):
         ''' -----------------------------------------
         Returns a 2D displacement map of the DM.
         assuming a square grid of actuators
 
         Parameters:
         ----------
-        - msz  : the size of the map (in pixels)
         - astep: actuator grid size (in pixels)
         ----------------------------------------- '''
-        dmmap = np.zeros((msz, msz), dtype=np.float64)
+        dmmap = np.zeros((self.csz, self.csz), dtype=np.float64)
         dms = self.dms
         dsz = self._if_asz  # padding for influence function
+        astep = dsz // 2    # actuator step on map
 
         if self.iftype != "":  # influence function specified!
             amap = self.dmd.copy()
-            # dsz += int(max(self.dx, self.dy) * self._if_asz) * 2
-            map1 = np.zeros((msz+dsz, msz+dsz), dtype=np.float64)
 
+            na_off = (dms - self.na0) // 2  # offset actuators
+            wsz = (dms+1) * astep          # work-map size
+            wmap = np.zeros((wsz, wsz), dtype=np.float64)
             for jj in range(dms*dms):
                 iy, ix = jj % dms, jj // dms     # actuator indices
-                if np.abs(amap[iy, ix]) > 1e-4:  # save some computation time?
-                    _y0 = int(np.round(iy*astep))
-                    _x0 = int(np.round(ix*astep))
-                    map1[_y0:_y0+self._if_asz,
-                         _x0:_x0+self._if_asz] += amap[iy, ix] * self.infun
+                _y0 = int(np.round(iy*astep))
+                _x0 = int(np.round(ix*astep))
+                wmap[_y0:_y0+self._if_asz,
+                     _x0:_x0+self._if_asz] += amap[iy, ix] * self.infun
 
-            dmmap = map1[dsz//2:dsz//2+msz, dsz//2:dsz//2+msz]
+            # keep useful part only
+            y0 = int((na_off + 0.5 + self.dy) * astep)
+            x0 = int((na_off + 0.5 + self.dx) * astep)
+            dmmap = wmap[y0:y0+self.csz, x0:x0+self.csz]
 
         else:
             # interpolation using PIL!
@@ -417,17 +420,17 @@ class HexDM(DM):
         self.srad = srad
 
     # ==================================================
-    def map2D(self, msz, astep):
+    def map2D(self):
         ''' -----------------------------------------
         Returns a 2D displacement map of the Hex DM.
 
         Parameters:
         ----------
-        - msz   : the size of the map (in pixels)
         - astep : actuator pitch (in pixels)
         ----------------------------------------- '''
         nr = self.nr
-        arad = astep/np.sqrt(3)
+        msz = self.csz
+        arad = self.astep/np.sqrt(3)
         dmmap = np.zeros((msz, msz), dtype=np.float64)
         xx, yy = np.meshgrid(np.arange(msz)-msz/2, np.arange(msz)-msz/2)
 

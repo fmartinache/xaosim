@@ -17,9 +17,9 @@
     Opens two external GUIs that show the live image and phase screen.
     --------------------------------------------------------------------- '''
 
-from .instrument import *
+# from .instrument import *
 
-import numpy.fft as fftmod
+# import numpy.fft as fftmod
 
-__version__ = "2.0.0"
-print("XAOSIM version ", __version__)
+__version__ = "1.0.11"
+# print("XAOSIM version ", __version__)

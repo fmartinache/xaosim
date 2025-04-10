@@ -252,7 +252,7 @@ class instrument(metaclass=Singleton):
                                              between_pix=True)
 
             self.add_membrane_DM(
-                dms=12, nch=8, na0=12, iftype="cosine", ifr0=1.0)
+                dms=12, nch=8, na0=10, iftype="cosine", ifr0=1.0)
 
             self.add_phscreen(
                 name="Paranal", r0=0.5, L0=10.0, fc=24.5, correc=1.0)

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xaosim"
+dynamic = ["version"]
+authors = [
+  { name = "Frantz Martinache", email="frantz.martinache@oca.eu"},
+]
+dependencies =["numpy", "matplotlib", "scipy", "pillow", "posix_ipc"]
+description = "Extreme AO simulation"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux"
+]
+
+[tool.hatch.version]
+path = "src/xaosim/__init__.py"
+
+[project.urls]
+Homepage = "https://github.com/fmartinache/xaosim/"
+Issues = "https://github.com/fmartinache/xaosim/issues"
